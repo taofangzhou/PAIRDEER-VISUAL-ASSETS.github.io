@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {issueAccess,validAccess,constantEqual,accessCookie,ADMIN_COOKIE} from '../lib/admin-access.ts';
+const secret='test-only-signing-key';
+const now=1700000000000;
+const request=token=>new Request('https://example.test/api/catalog',{headers:{cookie:`${ADMIN_COOKIE}=${token}`}});
+const token=await issueAccess(secret,now);
+assert.equal(await validAccess(request(token),secret,now),true);
+assert.equal(await validAccess(request(token),secret,now+3600000),false);
+assert.equal(await validAccess(request(token+'x'),secret,now),false);
+assert.equal(await validAccess(request(token),'different-key',now),false);
+assert.equal(await validAccess(request(token),undefined,now),false);
+assert.equal(await validAccess(new Request('https://example.test'),secret,now),false);
+assert.equal(await constantEqual('test-password','test-password'),true);
+assert.equal(await constantEqual('test-password','incorrect'),false);
+assert.match(accessCookie(token),/HttpOnly; Secure; SameSite=Strict/);
+assert.match(accessCookie(''),/Max-Age=0/);
+console.log('PASS: valid, absent, tampered, expired and wrong-key sessions; password comparison; secure cookie flags.');

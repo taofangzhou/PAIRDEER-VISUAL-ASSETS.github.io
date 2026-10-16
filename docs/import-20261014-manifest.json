@@ -1,0 +1,868 @@
+[
+  {
+    "id": "p54",
+    "name": "CR2锂电池",
+    "assets": [
+      {
+        "source": "CR2/3",
+        "original": "/api/media/ad296b73d64729dd1a04a7952c4d1deee577f1bcdab9d8c57963fb9114f48ae2.jpg",
+        "preview": "/api/media/99cd7662429ac97f525abec74983c7cfebc2faa0ac50b925faa2654d556268a9.webp",
+        "group": "mainImages",
+        "dimensions": [
+          800,
+          800
+        ]
+      },
+      {
+        "source": "CR2/O1CN01wn2atB1aQR6lVxlMH_!!728743324.png",
+        "original": "/api/media/cefa7e416ce963fccf732252851cd7931447daf8f92837b0e9dda4c075c6fd9e.png",
+        "preview": "/api/media/dc8416e964409b770573c2589680b0f219adf9dd0f2c5a81e606d5d457376a81.webp",
+        "group": "mainImages",
+        "dimensions": [
+          800,
+          800
+        ]
+      },
+      {
+        "source": "CR2/1.jpg",
+        "original": "/api/media/324687b9dbfd0958c8afeff04e7b7ab2a9e33c712ada3e20d89709207467cc9b.jpg",
+        "preview": "/api/media/b3296e6d486a612c6c902522989d0f340e6633ef09390199a8670804ab01ded4.webp",
+        "group": "mainImages",
+        "dimensions": [
+          800,
+          800
+        ]
+      },
+      {
+        "source": "CR2/2.jpg",
+        "original": "/api/media/b8167df28ef2c88a6f3e147f4b8e16753bb58f10ca1e073fd179d745d10ff035.jpg",
+        "preview": "/api/media/ff90203caba7d939db089b3ff4ae6c06450e3387de9b708702c2aa6e94a572e0.webp",
+        "group": "mainImages",
+        "dimensions": [
+          800,
+          800
+        ]
+      },
+      {
+        "source": "CR2/1..jpg",
+        "original": "/api/media/4325d8a4af3c902d6b01a0959a3524e1d58b68d9d3bbbda7c2952e275c11c4ec.jpg",
+        "preview": "/api/media/d57f8ba4750b38eef4355b0963d8fbf34f0be02092b23ce2e9331de65ac1ef6f.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          759
+        ]
+      },
+      {
+        "source": "CR2/2..jpg",
+        "original": "/api/media/ddbf2c84fa4e568f484e095c635c568ab646d420c0959f268d2e483f1eed29d8.jpg",
+        "preview": "/api/media/71dd2b45d83c7041706d8d246118e6d435f7cc35c05b04eab87a2d6dff6fc02f.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          597
+        ]
+      },
+      {
+        "source": "CR2/3.jpg",
+        "original": "/api/media/af6edb99400de05363d97ee8c9b8613a0581832e65053129608210270ded05f5.jpg",
+        "preview": "/api/media/a1a1b17aa7fe101768f513a13e7604803b874192f119ece70812658ef7053bfa.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          564
+        ]
+      },
+      {
+        "source": "CR2/4.jpg",
+        "original": "/api/media/dc623774850ea8041603c07ff852c149ece48c8b8daad4b92676b2c838a00be7.jpg",
+        "preview": "/api/media/c13752a936f6bbfe0a8b0f6a73b9374f7dc07dd4d869d7c7d590b4848a9bc19f.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          570
+        ]
+      },
+      {
+        "source": "CR2/5.jpg",
+        "original": "/api/media/57f570541888e75bd3abe8a81c025c5e112da123c81b4dfa78ce766404390f8d.jpg",
+        "preview": "/api/media/8f04c83f9b6bd20c17e532a947970aacc7b851226dd0c2a4b9b258990d33a624.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          644
+        ]
+      },
+      {
+        "source": "CR2/6.jpg",
+        "original": "/api/media/e1a7585f8551880469fb6bd38f500b7301624fd47c1832dd84f256cb4e6eed5f.jpg",
+        "preview": "/api/media/e0fbf10ba8f419321cf08e37ba7095ddaeb3994af9b44ac507a49d3b035e33f6.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          588
+        ]
+      },
+      {
+        "source": "CR2/7.jpg",
+        "original": "/api/media/355bf1c460488ede779233bfb21ba4afc51290b0bd6b3479aff08fef748d6930.jpg",
+        "preview": "/api/media/c15e4dbacf7a23bdda0a82eafb4e528ce43611eddffbc90448d8cdc5d46c0b3d.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          636
+        ]
+      },
+      {
+        "source": "CR2/8.jpg",
+        "original": "/api/media/f229bf753ef34ebc22e1e6ef120ac4b1494888853ebbc1089e2e2da43abb354a.jpg",
+        "preview": "/api/media/6f4510df7c1f89640a3f2f8e8ed491e34c2749cba1904019a20a56e95182e335.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          547
+        ]
+      },
+      {
+        "source": "CR2/O1CN01ajchqy1aQRTqYNsX0_!!728743324.jpg",
+        "original": "/api/media/5a5410cafb22a3f641d296e1dc22b3f324109a6eac226386924e78d41553a569.jpg",
+        "preview": "/api/media/d02e76909b3823ee67447d690dfa2bced52b3b531617badd2d5e0fb7b0f0addd.webp",
+        "group": "detailImages",
+        "dimensions": [
+          790,
+          653
+        ]
+      },
+      {
+        "source": "CR2/10.jpg",
+        "original": "/api/media/192e163cca14c467338e84d0c86162ea25bb4963d156b9323a668582113f9abc.jpg",
+        "preview": "/api/media/989c2558337169ad44beedd3ccbf87f3913daeca4260a0aae7951cf2bb15de29.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          861
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p55",
+    "name": "CR123A锂电池",
+    "assets": [
+      {
+        "source": "CR123A/01.jpg",
+        "original": "/api/media/ce91bb3e710c3ce7a35f654604143acc5f01316440385b9198a9fabc3ba0ee71.jpg",
+        "preview": "/api/media/fcc5c66010ddaab17bff237ab443d7c5bc583996d56f1bf3a7112c69ce2aafd6.webp",
+        "group": "mainImages",
+        "dimensions": [
+          750,
+          839
+        ]
+      },
+      {
+        "source": "CR123A/01.jpg",
+        "original": "/api/media/ce91bb3e710c3ce7a35f654604143acc5f01316440385b9198a9fabc3ba0ee71.jpg",
+        "preview": "/api/media/fcc5c66010ddaab17bff237ab443d7c5bc583996d56f1bf3a7112c69ce2aafd6.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          839
+        ]
+      },
+      {
+        "source": "CR123A/02.jpg",
+        "original": "/api/media/34c854bb6acc75deb62436cfb80c4faddf37336b2b564cc8711b7fd3f117a760.jpg",
+        "preview": "/api/media/3f4021f6b61cc97c2eb4607d79de6fc600a81c1ff25b5020363f83c2c69e6605.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          857
+        ]
+      },
+      {
+        "source": "CR123A/03.jpg",
+        "original": "/api/media/1adbb87b2b2d505bf80ee8758460b744c445d28f9d9d2ecaca85fb44870971ef.jpg",
+        "preview": "/api/media/a572564bae2e3d705aa3686cf0f9c05faefcd137f06ea196d5ac66ae69c8ced5.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          778
+        ]
+      },
+      {
+        "source": "CR123A/04.jpg",
+        "original": "/api/media/03e9c2c9c11a6767554eb56b5b1b1b56a875eee3d2a7a7fe09493c1047be8145.jpg",
+        "preview": "/api/media/ece91e79cf3f0667bcc74ccbd2983ef056a1f5b84370b0f9a344c5f41b43c5af.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          792
+        ]
+      },
+      {
+        "source": "CR123A/05.jpg",
+        "original": "/api/media/c680089aa3c152712120459e5602a4115b71a6c3da813cfc7efc5a0d088e18fe.jpg",
+        "preview": "/api/media/8bac1c9d2247fb8a5a373b9d6cb6d0bb522c9a16d6ac17a152b1943bbc593296.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          741
+        ]
+      },
+      {
+        "source": "CR123A/06.jpg",
+        "original": "/api/media/58cea2e2937285f166efd0bde86014f62d10e9c42fb6534bab28aaa16ec369e0.jpg",
+        "preview": "/api/media/ea7b1bb33fd2a7e10c020eb8d831595f4016050ca2156b473315be0ca59f3ea6.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          1002
+        ]
+      },
+      {
+        "source": "CR123A/07.jpg",
+        "original": "/api/media/86ebbff3952fbc708d0bc8cd7ca9fd58bec8abdcfa687732f46ac39f8d8f5312.jpg",
+        "preview": "/api/media/567541d87c27443b80e2763071d3b992578578ad5ea95e7154f063504555558e.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          851
+        ]
+      },
+      {
+        "source": "CR123A/08.jpg",
+        "original": "/api/media/e9eae0746856791d59fb5b0358510b7803f8940284814f174f1551200cda8da4.jpg",
+        "preview": "/api/media/18fdf239c6576205e7d51361e006fcb7859a1fc9a469061475340531e8735438.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          710
+        ]
+      },
+      {
+        "source": "CR123A/09.jpg",
+        "original": "/api/media/d05f3b5299790109d00a8c64bae04122a583c0f810af722d61235d327e3ba044.jpg",
+        "preview": "/api/media/ae97183265f0fc269ded5e76f148d2d30d4bb8b6930bdc252faf54cb232cd7b1.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          760
+        ]
+      },
+      {
+        "source": "CR123A/10.jpg",
+        "original": "/api/media/bdae23e1325293e9318d5c6c58d68f6e06aa69f32282a4e19292c6cff3f451af.jpg",
+        "preview": "/api/media/a15ff10d19cd25e5456dbf1401ec702f24c39706a1df4375d68b315e27138ee1.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          949
+        ]
+      },
+      {
+        "source": "CR123A/83d8d5f8f352018afb8e43482e9b468.jpg",
+        "original": "/api/media/e0b3a6e6e37420863b79ac73937e74f20ea52f9802f0f4471382074672572cfb.jpg",
+        "preview": "/api/media/fcc5c66010ddaab17bff237ab443d7c5bc583996d56f1bf3a7112c69ce2aafd6.webp",
+        "group": "extraImages",
+        "dimensions": [
+          750,
+          839
+        ]
+      },
+      {
+        "source": "CR123A/afa98729773130abaaa73f3a829476c.jpg",
+        "original": "/api/media/e0fcacdd73094f34c606e226c3f41a6013c9dd794febb30806a95d880e8ae943.jpg",
+        "preview": "/api/media/ea7b1bb33fd2a7e10c020eb8d831595f4016050ca2156b473315be0ca59f3ea6.webp",
+        "group": "extraImages",
+        "dimensions": [
+          750,
+          1002
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p56",
+    "name": "LR44碱性纽扣电池",
+    "assets": [
+      {
+        "source": "LR44/详情图_02.jpg",
+        "original": "/api/media/e3015c627b7735c8ae633ec61822058f6c3ec61037431c83424d88aea7d4058a.jpg",
+        "preview": "/api/media/90df21e91bf09af82ad0405ffe63ed5f5be6c4654628a58b19ce7d04c3cda132.webp",
+        "group": "mainImages",
+        "dimensions": [
+          2480,
+          3104
+        ]
+      },
+      {
+        "source": "LR44/详情图_01.jpg",
+        "original": "/api/media/40ed1315159ea888ef6945256b2f858a37441bdb35f534418b8b640fb6eb955e.jpg",
+        "preview": "/api/media/c77a10899fc9f6533e0026224629fe8c97d73d288498ed362c8aa9f22211dda3.webp",
+        "group": "detailImages",
+        "dimensions": [
+          750,
+          270
+        ]
+      },
+      {
+        "source": "LR44/详情图_02.jpg",
+        "original": "/api/media/e3015c627b7735c8ae633ec61822058f6c3ec61037431c83424d88aea7d4058a.jpg",
+        "preview": "/api/media/90df21e91bf09af82ad0405ffe63ed5f5be6c4654628a58b19ce7d04c3cda132.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          3104
+        ]
+      },
+      {
+        "source": "LR44/详情图_03.jpg",
+        "original": "/api/media/5315d46d1ad3471a15a36955c67995b3188cdf0c8be5e5af0b89938debaef473.jpg",
+        "preview": "/api/media/2fcf7647f2370ca46b08a1d1b499237d5588ab5927e96ca4a9a5ac77f112b960.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          2480
+        ]
+      },
+      {
+        "source": "LR44/详情图_04.jpg",
+        "original": "/api/media/098c86eb20e6d760cc04671b80480e8371147d8a8931d175ff81e26feeb74c3b.jpg",
+        "preview": "/api/media/b23833ab954010ad2a9893456e199dd1e1334dadeec78bc02e7dd07fca894b71.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          2752
+        ]
+      },
+      {
+        "source": "LR44/详情图_05.jpg",
+        "original": "/api/media/2290e419b9f0f226d66101133651efc1c72ba317418a0aba4ceb319a68a9799b.jpg",
+        "preview": "/api/media/f136a1a3ad99cb1db67a57fff3698842850d24c72a1e2bf3fad98f6c67710884.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          2488
+        ]
+      },
+      {
+        "source": "LR44/详情图_06.jpg",
+        "original": "/api/media/6f4c7e34c72823c4ca93866f5c87d27187acc7a1e80362c42da657a4c8d79ed9.jpg",
+        "preview": "/api/media/f4c1739a7048308563ed526b66559520298e6926b3b3c74643cbe0ab8f1c24d5.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          3024
+        ]
+      },
+      {
+        "source": "LR44/详情图_07.jpg",
+        "original": "/api/media/3c4b68793badedd590521b6eb1bd9b9f10d27cf1f01a01247bc0df5e6fe18e51.jpg",
+        "preview": "/api/media/8ef5c9826727b61e7d5c1cd5751bf5007c9ee103b41eeb9b569702f476bc4cc1.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          2452
+        ]
+      },
+      {
+        "source": "LR44/详情图_08.jpg",
+        "original": "/api/media/7822dda0d2d5649e60b45e122f8dda745de0eb0be44ed3961a8db6a621f9d05e.jpg",
+        "preview": "/api/media/de6cf43c4081dec58e41cd53f0ed00fa751399cb3810f5c3b3de4839a12ef54a.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          2656
+        ]
+      },
+      {
+        "source": "LR44/详情图_09.jpg",
+        "original": "/api/media/11b5f39e5f03c70c76845a31c0fad6c81702c45d64f1fffb16b160d433417895.jpg",
+        "preview": "/api/media/e2740c2da4f1ff0acbcdfaad8dbcfaebe70d5ddacbc4e52565ddfe1cbbadc4f0.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          2564
+        ]
+      },
+      {
+        "source": "LR44/详情图_10.jpg",
+        "original": "/api/media/aa31c9a32ead7b599bf861a52a40d3bca1cf75076786f2e87d123153911978cf.jpg",
+        "preview": "/api/media/71545ba9723b427598c31a5103dbb8c9a315597ffc1b91715c07df6dff4bee25.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          2508
+        ]
+      },
+      {
+        "source": "LR44/详情图_11.jpg",
+        "original": "/api/media/00db9b02f1feec901e3d197246851214be003341141ed95841558667b8fc3bcf.jpg",
+        "preview": "/api/media/23dc2ea1505bc00b300ba9e2c8be1f6a2f62f994971b91470a2b61521e67bf8a.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          2768
+        ]
+      },
+      {
+        "source": "LR44/详情图_12.jpg",
+        "original": "/api/media/0b25638cdd0d348196781e9d372038d807d4655cc788adfa5733484dc84df536.jpg",
+        "preview": "/api/media/6c2db9b520e5623a82488b1d8e379ad40f3a65766a6df14c280875afef144a1f.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          4156
+        ]
+      },
+      {
+        "source": "LR44/详情图_13.jpg",
+        "original": "/api/media/ad46d6d6d9e17a543c28e09e9bdfdab69e11967ee79be0e47ccce0a5ee299604.jpg",
+        "preview": "/api/media/b8086ac9c7807c2fe974f9c1c8a43d1238eb4a865e2225e27e725fad77f80fe4.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          4088
+        ]
+      },
+      {
+        "source": "LR44/详情图_14.jpg",
+        "original": "/api/media/c40eb76351547555074ebd62a640c75a0580cbd2d5f53a19a7183b992c2f62a5.jpg",
+        "preview": "/api/media/66ba08ebc993e910bb28f7e8e7be63d5ff748599e76e568291bd9e22d1493a06.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          2852
+        ]
+      },
+      {
+        "source": "LR44/详情图_15.jpg",
+        "original": "/api/media/31206b64f19286613042a23505b1054e2f92203199e414200e92b55016287c86.jpg",
+        "preview": "/api/media/1410850fdea0e8423846ae04375e63cf0aa27430820efd48f466eb1a89473bde.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          4020
+        ]
+      },
+      {
+        "source": "LR44/详情图_16.jpg",
+        "original": "/api/media/5e03f5fb7e05c94d0389603c81bdf6a4e16372dbf4c8c73edd32367d3b03b548.jpg",
+        "preview": "/api/media/f46ec3ff0f09553d9f1befe9a0ab085f71174789031dbeeba91e5701c0bfb9fb.webp",
+        "group": "detailImages",
+        "dimensions": [
+          2480,
+          2456
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p57",
+    "name": "SL601酷燃打火机",
+    "assets": [
+      {
+        "source": "SL601酷燃打火机/主图/1.png",
+        "original": "/api/media/4600cc2b044658c90e1d207fb177619d335e42c77354dbe305491dd6c8556f3a.png",
+        "preview": "/api/media/1cb59b4c319515a2e9ac0a751c7fba931568907635583b45398a1f4c4781e838.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1600,
+          1600
+        ]
+      },
+      {
+        "source": "SL601酷燃打火机/主图/2.png",
+        "original": "/api/media/656f23c828ccbb8252d5b0f9ed301e4c454cebf35c007adfab17786b6267d19f.png",
+        "preview": "/api/media/ae386e01b19838b36ae3472a98598ea32ac6b5c7864f0191e52aa850e815cf22.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1600,
+          1600
+        ]
+      },
+      {
+        "source": "SL601酷燃打火机/主图/3.png",
+        "original": "/api/media/a3dfd22447f91902b392ae717eb0b6d96e71bbf479712bd612e0df60e3fb4430.png",
+        "preview": "/api/media/e6d0ab8cc2cb570de983a16825987bb5e52611b90fb3a6e6e2ab429607b5764d.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1600,
+          1600
+        ]
+      },
+      {
+        "source": "SL601酷燃打火机/主图/4.png",
+        "original": "/api/media/5b6980f8b11252d450dab0980d7b9c1d623154f50cedacdec888d4845d1a8fe6.png",
+        "preview": "/api/media/9eccc3e9e25cab6e78d77cfc7bd583ec1adeb877cb17fb4c778261a139c6d648.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1600,
+          1600
+        ]
+      },
+      {
+        "source": "SL601酷燃打火机/详情页/1.png",
+        "original": "/api/media/c3500e0e1ff230bfca087b3bf968c40cbc47dbad3680da9c195f36dbebaa3ace.png",
+        "preview": "/api/media/c2c3b9ffe3be270900ac75bea9c181ad2ef98b1407c4a90f8beab1ad606ae3df.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1049,
+          1499
+        ]
+      },
+      {
+        "source": "SL601酷燃打火机/详情页/2.png",
+        "original": "/api/media/0b082f745b6facd48e700e9bd04e4fbd3be0e350503d5ead7edcbdee1b55320b.png",
+        "preview": "/api/media/42c9d0d7e5183e3bec47f1161081f9d07a48755ab8f07b83fd082b8ca882515a.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1049,
+          1499
+        ]
+      },
+      {
+        "source": "SL601酷燃打火机/详情页/3.png",
+        "original": "/api/media/5f2ffaddba474c5ecd6b414bfcea3ecb7607e4c6c34f070d72774b3347b700f4.png",
+        "preview": "/api/media/404f4f83229c47c6389db6764c1a81ccc0dbbf016911e7293f520151cf660d0e.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1049,
+          1499
+        ]
+      },
+      {
+        "source": "SL601酷燃打火机/详情页/4.png",
+        "original": "/api/media/55453541112491de481f6eab32b7a7a7114927a9a04aebcf94bd335cb2db540c.png",
+        "preview": "/api/media/f22a509d0a19ba0e3d9fe9093798652652e2d1c9ea8a6e42b0a7878f2c7bcc4f.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1049,
+          1499
+        ]
+      },
+      {
+        "source": "SL601酷燃打火机/详情页/5.png",
+        "original": "/api/media/27aea53c7a9fb8c073ae48192376f9b67b3eb09562860d9d389caabb61ff3798.png",
+        "preview": "/api/media/2850ddc78cf1d02107f2f494d7f900f15fc7c970e34b07b1f4a9600d89aef746.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1049,
+          1499
+        ]
+      },
+      {
+        "source": "SL601酷燃打火机/详情页/6.png",
+        "original": "/api/media/2523b43f9bf2b94557510544d6f0609833efea5a290d7d89eee939686aab17ac.png",
+        "preview": "/api/media/43b8abdf00d50e9a66bf6346cb6cab72c8d57f87ed84db00c7d6ef44e9df3995.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1049,
+          1499
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p58",
+    "name": "SL701酷燃打火机",
+    "assets": [
+      {
+        "source": "SL701酷燃打火机/主图/打火机SL701主图1.png",
+        "original": "/api/media/4b4db365acae6a4b45e213c901a0376849f53687713324ed98ca7d41eae4bb5f.png",
+        "preview": "/api/media/cc8a27ade8e280ebb971f2977b12b26740224309e5085fb6f34ad82333cf9cbd.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1200,
+          1200
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/主图/打火机SL701主图2.png",
+        "original": "/api/media/a1bbdfbb39ea4b632dd28e03ee5202b943b4d6706de9d615a0ce9c68a615c7fc.png",
+        "preview": "/api/media/41e4ed20c3374b66b90d42ed3e44878b1cea1f5cf4a95eb3c1ba1f7245f0fecc.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1200,
+          1200
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/主图/打火机SL701主图3.png",
+        "original": "/api/media/c5e7a51e003bf8a4b35a335623402cb40a9fb99466a5db12e44c230ec0d459c1.png",
+        "preview": "/api/media/a2903ba7908a3c9add1b64e6e290bd706c9917db614fe3d952ac70554fd8a964.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1200,
+          1200
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/主图/打火机SL701主图4.png",
+        "original": "/api/media/edd09bda579b58f28926c30e028a551267ba9d6f8410dff09a0cc2e2a8063829.png",
+        "preview": "/api/media/152172b02a56910acf785cc35e68ee9df17a9527cc48b8f3d8d3d7bda68f2b60.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1200,
+          1200
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/主图/打火机SL701主图5.png",
+        "original": "/api/media/b90e884fd5e82d09769a4fa006a4969b4b51b552fe19e27f7608ae95d0d9928e.png",
+        "preview": "/api/media/a02178aac9a56c8222f6e38478dd06261b1d75fdf190ce5f9f5fa10611e6e764.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1200,
+          1200
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/详情页分页/1.png",
+        "original": "/api/media/889ad084aea792bd5ec0c49c99801083b9e88792acc416d1df1b9da7f74af4e3.png",
+        "preview": "/api/media/7e9f8c0a980bbd2d7476a2b36b190bd6467bf2a6cd652cb00f079f547bf16c9e.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          1333
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/详情页分页/2.png",
+        "original": "/api/media/38de4f2c6c64653a4b3a5b0161f9dcc518d4fd3cf0c9a7d6e3b01a1da2d2ae05.png",
+        "preview": "/api/media/8db8a4d4dc0dc4d18d9a8d42a5ed38944c27c3d15f5fd606542cdb7be41e33ce.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          1694
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/详情页分页/3.png",
+        "original": "/api/media/2900c6cda0062c4fa18b4556d110abd530118e4682b7f41dfda65139615e322b.png",
+        "preview": "/api/media/a731b54841c99274066fbd99a9a5884f723019fc5fcfc65a1c1a2fef80bde02d.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          1929
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/详情页分页/4.png",
+        "original": "/api/media/3d5c028d4d7becf1e08c2e9551760e6ab7bc706d94fd7c60a30af594187961c5.png",
+        "preview": "/api/media/f0347c536ed325d2cdbcd19830542ef2cd85ddbd2bfb22d21e39a9ac4dd7801b.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          1774
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/详情页分页/5.png",
+        "original": "/api/media/abca5a2e69cda3325f15cd837522892bfa710e0fd8abab5fcf721f3364b2ff26.png",
+        "preview": "/api/media/41963dd6b677f2d21e2d38af6d8c30293f94155b90b92c63bc2dee3fbeca08ee.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          1740
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/详情页分页/6.png",
+        "original": "/api/media/f027f84e7ae109e39b0e542c57ab4d462988611850fde8c2e0ce702a1ceb31df.png",
+        "preview": "/api/media/70d693d1c7d9bb39213a1555392e4e95579121e626d45630b06124e333a9cc9a.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          1786
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/详情页分页/7.png",
+        "original": "/api/media/f97803c48cc13095483415899578750043ec0a1686787c98a85f517bd216283f.png",
+        "preview": "/api/media/97fb7cfbd9b4b4820ed730c2c6b61a25e2bbef6000cd2e2f12ff135ede63a307.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          1801
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/详情页分页/8.png",
+        "original": "/api/media/2523a83c69b0708febfe1472a4b57fd9cbbdea7ac26eec281ff8a118d5db6e83.png",
+        "preview": "/api/media/43ba24badc32dbeb1a4eed0fc3990c0667c7461761933e6581d0ca5ab6008dc2.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          1805
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/详情页分页/9.png",
+        "original": "/api/media/28a9e4e9f09e5697ed35ecc2c2531ace74a0ed50e4bea7c19649b7c8ce1b5940.png",
+        "preview": "/api/media/24d480231444982db10c5b79505e7a781dce44d916ba031658fd7c0cf7a1f41c.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          1771
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/详情页分页/10.png",
+        "original": "/api/media/8f2ffc2a780070fdca6da58c4dc15254013f4bda0d8b3a18ff0faae6e64c5972.png",
+        "preview": "/api/media/4a1eef71183922d3802fb3fec4d695dea2a26aa7aa1091cc7667c1465ad03096.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          1714
+        ]
+      },
+      {
+        "source": "SL701酷燃打火机/详情页分页/11.png",
+        "original": "/api/media/666f519c32c36a02e0bcdb51327a43a642251c3c9657157f133fc4f682f909ce.png",
+        "preview": "/api/media/1dff827d38bbc22f92412c984366fc92ede808af51f1430324dbc7823398234c.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          2045
+        ]
+      }
+    ]
+  },
+  {
+    "id": "p59",
+    "name": "SL801酷燃打火机",
+    "assets": [
+      {
+        "source": "SL801酷燃打火机/主图/打火机SL801主图1.png",
+        "original": "/api/media/dda2ebe2d832bdbd6951ffd22c4f74992ceaebe64546e9c422c131f76b81f057.png",
+        "preview": "/api/media/6328ec397f5aea05c512be958d9ad3f3f6c9dad34328e8720ecd325120084e7b.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1200,
+          1200
+        ]
+      },
+      {
+        "source": "SL801酷燃打火机/主图/打火机SL801主图2.png",
+        "original": "/api/media/6b1ee343063cf9604836aa628da9e4a38c2b63ac218af6b08bd016d8595fe4e2.png",
+        "preview": "/api/media/df46d555f09eaa0560bf37d7f855e9c374bd64b7eeca431f817a21f571f0207e.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1200,
+          1200
+        ]
+      },
+      {
+        "source": "SL801酷燃打火机/主图/打火机SL801主图3.png",
+        "original": "/api/media/941792dae0560076ea430b0d2fa014a799a90dd090c4ee72150aff63ad9d61a5.png",
+        "preview": "/api/media/ef8b76fed7221d7dacb5bc5a4f882d83a4378c5329eefc7ba011a35ce51d49c1.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1200,
+          1200
+        ]
+      },
+      {
+        "source": "SL801酷燃打火机/主图/打火机SL801主图4.png",
+        "original": "/api/media/dad4848ee9ac5449e9a637f0756831730e944d292240b4fc9a8b87229d9abdcf.png",
+        "preview": "/api/media/f6ab86b20fe4e560b022008ae50945a1ebd5cada2bf054bccb4eb238fe2285bf.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1200,
+          1200
+        ]
+      },
+      {
+        "source": "SL801酷燃打火机/主图/打火机SL801主图5.png",
+        "original": "/api/media/db0f8b02543098bf5ea5867f16938ca15829d5eed2f73998ec27e97b7f1d6287.png",
+        "preview": "/api/media/e47ec852514cceb5fe5f7f5dbbf89c4d98c2332ce2fd408295119e488a92ccc8.webp",
+        "group": "mainImages",
+        "dimensions": [
+          1200,
+          1200
+        ]
+      },
+      {
+        "source": "SL801酷燃打火机/详情页（分页）/1.png",
+        "original": "/api/media/f32d4ee69c1890bd1bac19996cfd28bbfcaf88a3ba7fabf15d0d05f1563a476c.png",
+        "preview": "/api/media/98fc3582fcf5f9dd48a6f79897ddb4f0d927e0374c2bfc4023dde9ef6d0bc426.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          2153
+        ]
+      },
+      {
+        "source": "SL801酷燃打火机/详情页（分页）/2.png",
+        "original": "/api/media/87d10fe0defcc4b6ff72294d7d3050609c2206851f8c1842fe55391c5fc07ff1.png",
+        "preview": "/api/media/95eff3634f606566f104d504c69cfd689ce0b47e94436eb85c791e7c4211087d.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          2182
+        ]
+      },
+      {
+        "source": "SL801酷燃打火机/详情页（分页）/3.png",
+        "original": "/api/media/d84556b9ccba1e93aba3660a7cfb0c5214a0dfd41d405b6b77c1e97caaadbe0c.png",
+        "preview": "/api/media/108d4e325785607f50ce903c221659ecf13f0ef2455151acf452dfad2919d2e4.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          2425
+        ]
+      },
+      {
+        "source": "SL801酷燃打火机/详情页（分页）/4.png",
+        "original": "/api/media/480b465a6db0b4369d0fff151418b9057eb99da5fe67247c7740d15478abd7e0.png",
+        "preview": "/api/media/247b35b362f38036d951b9ec3e90b15376255fb84c2b1a4122e22e9e373c49be.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          2884
+        ]
+      },
+      {
+        "source": "SL801酷燃打火机/详情页（分页）/5.png",
+        "original": "/api/media/af4977ff11dd17eb5619b16d7738b8963c230fc873e63c3e08893a1a71f0a49b.png",
+        "preview": "/api/media/645caff70fcf13437c78b5616fd47a47af05d2e571a1c3ce760c3980fad410f6.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          2608
+        ]
+      },
+      {
+        "source": "SL801酷燃打火机/详情页（分页）/6.png",
+        "original": "/api/media/a72d89e24e87ac18fc339d96aca3bdbfb2a924d5e6cfff4bcde0efe59ca6b7e0.png",
+        "preview": "/api/media/bad9f6d36709d6469b706f6a7a8dd835e60d81bbdcb73cfff6c72bfc0f1d6e88.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          2531
+        ]
+      },
+      {
+        "source": "SL801酷燃打火机/详情页（分页）/7.png",
+        "original": "/api/media/485c73886adae1a6f461c3f639191858ef09877da5ae8d95c3a9a1a3c40b6293.png",
+        "preview": "/api/media/86551db36223e954ebe63f68bc7d92ede93e07c10a77454e0486b4858e2d83d1.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          1892
+        ]
+      },
+      {
+        "source": "SL801酷燃打火机/详情页（分页）/8.png",
+        "original": "/api/media/dc08aebb4f51912777bcf458b1f00fe1a53cd97308163bd396864b781d4cbea2.png",
+        "preview": "/api/media/efb945199d96087e99e8a69bcbd1c6372536f9dcaf55d1a1a6094f08a8bfcc16.webp",
+        "group": "detailImages",
+        "dimensions": [
+          1200,
+          1825
+        ]
+      }
+    ]
+  }
+]
