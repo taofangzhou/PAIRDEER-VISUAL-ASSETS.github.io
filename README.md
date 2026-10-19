@@ -2,6 +2,15 @@
 
 这是资料工具，不是交易商城。原有品牌 Logo、3 张轮播海报、53 款产品的主图和完整详情图均来自用户提供的发布包。
 
+## 访问入口与自定义域名
+
+- 当前正式入口：https://shuanglu-visual-center.taofangzhou1231.chatgpt.site
+- 目标自定义域名：https://shuanglu-battery.cn 。Sites 已登记绑定；2026-10-19 刷新后仍为 `pending`，证书为 `pending_validation`，DNS/证书验证完成前继续使用上面的正式入口。
+- GitHub Pages 入口：https://taofangzhou.github.io/PAIRDEER-VISUAL-ASSETS.github.io/ 。`gh-pages` 分支提供跳转到正式入口的静态页面，保留 `?admin=1` 等查询参数和页面锚点；需先公开仓库并在 Settings → Pages 中选择 `gh-pages` / `(root)` 才能发布。
+- 完整应用继续由 Sites 承载登录、数据库和上传 API。`shuanglu-battery.cn` 绑定 Sites，不在 Pages 设置中重复绑定同一域名。
+
+具体开通步骤与本次平台返回的 DNS 记录见 [GitHub Pages 与域名配置](docs/github-pages-domain.md)。
+
 ## 已实现
 
 - 白色/酒红品牌首页，PC 与手机响应式布局；所有窗口共用一个资料 API。
