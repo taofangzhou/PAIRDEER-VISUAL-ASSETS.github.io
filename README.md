@@ -4,12 +4,12 @@
 
 ## 访问入口与自定义域名
 
-- 当前正式入口：https://shuanglu-visual-center.taofangzhou1231.chatgpt.site
-- 目标自定义域名：https://shuanglu-battery.cn 。Sites 已登记绑定；2026-10-19 刷新后仍为 `pending`，证书为 `pending_validation`，DNS/证书验证完成前继续使用上面的正式入口。
-- GitHub Pages 入口：https://taofangzhou.github.io/PAIRDEER-VISUAL-ASSETS.github.io/ 。`gh-pages` 分支提供跳转到正式入口的静态页面，保留 `?admin=1` 等查询参数和页面锚点；需先公开仓库并在 Settings → Pages 中选择 `gh-pages` / `(root)` 才能发布。
-- 完整应用继续由 Sites 承载登录、数据库和上传 API。`shuanglu-battery.cn` 绑定 Sites，不在 Pages 设置中重复绑定同一域名。
+- 正式目标域名：https://shuanglu-battery.cn/ 。完整应用由现有 Sites 项目直接提供，浏览和使用功能时保留这个域名，不通过 GitHub Pages 跳转回原地址。
+- 当前可用入口：https://shuanglu-visual-center.taofangzhou1231.chatgpt.site 。2026-10-19 刷新后自定义域名仍为 `pending`，证书为 `pending_validation`；DNS 和证书验证完成前，使用这个现有入口。
+- GitHub 仓库已为 Public，Pages 已启用，最近发布源为 `main`。仓库根目录不保留分配给 `shuanglu-battery.cn` 的 `CNAME`；Pages 的 Custom domain 应留空，避免与完整应用的域名用途混淆。
+- `gh-pages` 分支仅为备用跳转页，不承载登录、数据库或上传 API。自定义域名验证成功前不将该跳转页目标切到尚未可用的域名。
 
-具体开通步骤与本次平台返回的 DNS 记录见 [GitHub Pages 与域名配置](docs/github-pages-domain.md)。
+准确 DNS 记录、GitHub Pages 的解绑步骤和上线验收条件见 [自定义域名配置](docs/github-pages-domain.md)。
 
 ## 已实现
 
@@ -118,6 +118,6 @@
 
 验证通过后保留原有唯一管理员 ChatGPT 账号校验；仅知道入口密码不能获取资料编辑权限。保存、上传、OSS 签名及管理员激活接口均检查密码会话。会话使用 HttpOnly、Secure、SameSite=Strict Cookie，一小时到期，可点击“锁定管理员入口”清除。密码验证按网络地址每15分钟最多5次，记录在 D1 `admin_login_attempts` 表（首次使用自动创建）。
 
-部署到其他环境时，须单独安全配置上述两项秘密；GitHub Pages 静态托管无法执行本项目的服务端认证、数据库和上传接口。正式运行入口为 https://shuanglu-visual-center.taofangzhou1231.chatgpt.site 。
+部署到其他环境时，须单独安全配置上述两项秘密；GitHub Pages 静态托管无法执行本项目的服务端认证、数据库和上传接口。域名验证完成前的运行入口为 https://shuanglu-visual-center.taofangzhou1231.chatgpt.site ；正式目标域名为 https://shuanglu-battery.cn/ 。
 
 验证命令（Node 24）：`node tests/admin-access.test.mjs`。
