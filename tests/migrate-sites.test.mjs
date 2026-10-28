@@ -212,3 +212,14 @@ test('CLI help and malformed options do not begin migration', async () => {
   await assert.rejects(run(process.execPath, [script, '--data-dir']), /Missing value/);
   await assert.rejects(run(process.execPath, [script, '--unknown']), /Unknown or duplicate/);
 });
+
+test('CLI executes through the ECS current release symlink', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'pairdeer-current-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const current = join(directory, 'current');
+  await symlink(dirname(dirname(script)), current, 'dir');
+  const entry = join(current, 'scripts', 'migrate-sites.mjs');
+  const { stdout } = await run(process.execPath, [entry, '--help']);
+  assert.match(stdout, /before DNS switches/);
+  await assert.rejects(run(process.execPath, [entry, '--data-dir']), /Missing value/);
+});

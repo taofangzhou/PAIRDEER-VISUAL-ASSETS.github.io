@@ -2,7 +2,7 @@
 // Run explicitly before changing DNS. No network or disk work happens on import.
 import { createHash, randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
-import { link, lstat, mkdir, open, rename, unlink, writeFile } from 'node:fs/promises';
+import { link, lstat, mkdir, open, realpath, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, parse, resolve } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -323,6 +323,8 @@ async function main(args) {
   process.stdout.write(JSON.stringify(await migrateSites(options)) + '\n');
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Node resolves the entry module to its real path, but argv retains /current/.
+// The documented ECS release symlink must execute the CLI as well.
+if (process.argv[1] && await realpath(resolve(process.argv[1])) === fileURLToPath(import.meta.url)) {
   main(process.argv.slice(2)).catch(error => { process.stderr.write(`Migration failed: ${error.message}\n`); process.exitCode = 1; });
 }

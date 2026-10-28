@@ -53,7 +53,7 @@ bash deploy/package-release.sh
 
 ```bash
 sudo bash deploy/init-env.sh
-sudo bash deploy/install-release.sh /tmp/pairdeer-deploy/pairdeer-实际时间.tar.gz
+sudo env PATH=/usr/local/bin:/usr/bin:/bin bash deploy/install-release.sh /tmp/pairdeer-deploy/pairdeer-实际时间.tar.gz
 sudo systemctl status pairdeer --no-pager
 curl --fail http://127.0.0.1:3000/api/health
 ```
@@ -91,7 +91,7 @@ sudo systemctl stop pairdeer
 如果旧站仍可访问，在 ECS 从旧网站读取当前产品目录与所需媒体：
 
 ```bash
-sudo -u pairdeer node /opt/pairdeer/current/scripts/migrate-sites.mjs \
+sudo -u pairdeer env PATH=/usr/local/bin:/usr/bin:/bin node /opt/pairdeer/current/scripts/migrate-sites.mjs \
   --source https://shuanglu-battery.cn \
   --data-dir /var/lib/pairdeer
 ```
@@ -101,7 +101,7 @@ sudo -u pairdeer node /opt/pairdeer/current/scripts/migrate-sites.mjs \
 离线完整备份目录应包含 `catalog.json` 和 `media/`，如有 `objects.json` 校验清单一并保留：
 
 ```bash
-sudo -u pairdeer node /opt/pairdeer/current/scripts/migrate-sites.mjs \
+sudo -u pairdeer env PATH=/usr/local/bin:/usr/bin:/bin node /opt/pairdeer/current/scripts/migrate-sites.mjs \
   --backup-dir /路径/完整导出目录 \
   --data-dir /var/lib/pairdeer
 ```
