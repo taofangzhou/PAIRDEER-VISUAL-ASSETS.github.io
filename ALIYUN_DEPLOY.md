@@ -1,80 +1,177 @@
-# 阿里云接入操作说明
+# 阿里云 ECS 独立部署
 
-当前网站已经有真实云数据库和云存储。以下步骤将产品资料和后续上传切换到你自己的阿里云；账号收藏与唯一管理员绑定继续由 Sites 数据库维护。
+本分支把网站本身部署到 ECS，使用 Node.js 24 LTS、Next.js standalone、SQLite 和 ECS 磁盘存储。默认不使用 Sites、ChatGPT 登录、D1、R2、RDS 或 OSS。
 
-## 1. 准备服务
+目标：Alibaba Cloud Linux 3 x86_64，2 核 / 2 GiB，40 GiB 磁盘，公网 IP `123.56.252.14`，域名 `shuanglu-battery.cn`。公网带宽为 3 Mbps，原图/视频下载速度受此带宽限制；后续可配置自己的 OSS/CDN，但不影响本次独立运行。
 
-在阿里云 ECS 或支持 Node.js 22 的托管平台部署本工程中的 `aliyun-service/`，同时保留上一级 `lib/seed.json`。适配器通过 HTTPS 暴露 `/catalog` 和 `/sign`，网站通过带密钥的服务器请求调用，浏览器不会拿到服务密钥。
+这些文件是部署准备，不能替代实际服务器操作。本次源代码修改不会自动连接 ECS、导入线上素材、安装证书或修改 DNS。
 
-进入 aliyun-service，运行 `npm install`。复制 `.env.example` 为 `.env`，填写：
+## 1. 发布结构
 
-- `SERVICE_TOKEN`：至少32字符的高强度随机令牌。
-- `DATABASE_URL`：RDS PostgreSQL 的连接串；账号密码和库名按实际填写。服务使用 SSL 验证连接。
-- `ALIYUN_OSS_ACCESS_KEY_ID` / `ALIYUN_OSS_ACCESS_KEY_SECRET`：限定 Bucket 权限的 RAM 凭证。
-- `ALIYUN_OSS_BUCKET`：Bucket 名。
-- `ALIYUN_OSS_REGION`：如 oss-cn-hangzhou，与实际地域一致。
-- `ALIYUN_OSS_PUBLIC_BASE_URL`：图片可读取的 HTTPS 基础地址，或已经配置好的 CDN 域名。
+| 路径 | 用途 |
+| --- | --- |
+| `/opt/pairdeer/releases/` | 每次构建的独立程序版本 |
+| `/opt/pairdeer/current` | 当前程序版本软链接 |
+| `/opt/pairdeer/previous` | 上一程序版本软链接 |
+| `/var/lib/pairdeer/` | SQLite 及媒体文件，升级保留 |
+| `/etc/pairdeer/pairdeer.env` | 仅服务器持有的密码、会话密钥和运行配置 |
+| `/etc/nginx/conf.d/pairdeer.conf` | HTTPS 反向代理配置 |
+| `/etc/nginx/ssl/` | 该域名的证书及私钥 |
 
-先运行 `npm run migrate` 创建 visual_catalog 表，再 `npm start`。服务默认8080，由反向代理提供 HTTPS。RDS 白名单允许该服务主机连接；不要向互联网开放数据库端口。
+Node 进程以 `pairdeer` 非 root 账号运行，仅监听 `127.0.0.1:3000`。nginx 监听 80/443。ECS 安全组与主机防火墙允许 80/443；SSH 仅按您的管理来源开放，不要开放 3000 或数据库端口。`TRUST_PROXY=1` 依赖随包 nginx 覆盖 `X-Real-IP`，不能把 Node 端口直接暴露给互联网。
 
-## 2. OSS Bucket
+## 2. 准备运行环境
 
-选择与服务器相近的地域。给 RAM 用户设置仅目标 Bucket/visual-assets 前缀的所需访问权限。
+通过阿里云 ECS 的 Workbench/SSH 登录此实例。安装 Node.js **24 LTS**，确认实际 `node -v` 为 v24 或更高受支持版本，`node` 位于 `/usr/local/bin` 或 `/usr/bin`。若现有系统不带 Node.js 24，可从 Node.js 官网获取 Linux x64 发行包，核验其 SHA256 后安装；不要用旧版本 Node.js 启动本项目的 SQLite 运行时。
 
-当前适配器返回可读取的图片 URL，因此需要公开只读的素材目录/公开读取策略或已经接通读取的 CDN。不要开放公共写入权限。如必须使用私有 Bucket，需另加带鉴权的读取代理或短时读取签名，当前代码不能直接使用私有 URL 展示。
+Alibaba Cloud Linux 3 上安装 nginx 和脚本所需工具：
 
-Bucket 跨域设置：
+```bash
+sudo dnf install -y nginx tar gzip curl openssl
+node -v
+```
 
-- 来源：当前 Sites 实际访问域名，以及准备上线的 https://shuanglu-battery.cn；使用精确来源。
-- 方法：PUT、GET、HEAD。
-- 允许请求头：Content-Type。
-- 暴露响应头：ETag。
+先检查现有 nginx、80/443 端口和 `/etc/nginx/conf.d/` 是否承载其他业务，再添加本项目配置。不要直接覆盖其他站点。
 
-浏览器使用服务端生成的15分钟 OSS V4 PUT URL直接上传，不经网站中转文件内容。
+## 3. 在构建机器制作发布包
 
-## 3. 配置 Sites 秘密环境变量
+建议在 Linux x64 的开发机或 CI 构建。2 GiB ECS 可运行应用，但构建会占用更多内存；不要在正在服务的进程旁反复构建。如果只能在 ECS 构建，请在维护窗口检查内存及已有 SWAP 后进行。
 
-- `ALIYUN_SIGNER_URL=https://你的适配器域名/sign`
-- `ALIYUN_SIGNER_TOKEN=与SERVICE_TOKEN一致`
-- `CATALOG_API_URL=https://你的适配器域名/catalog`
-- `CATALOG_API_TOKEN=与SERVICE_TOKEN一致`
+```bash
+# 进入本分支检出目录，按仓库锁文件安装依赖。
+npm ci
+bash deploy/package-release.sh
+```
 
-重新发布网站后生效。可单独启用 OSS 或 PostgreSQL；未启用的部分继续使用现有云存储。
+脚本执行生产构建，生成 `work/releases/pairdeer-时间.tar.gz`，包含 standalone Node 服务、静态资源和部署工具，不含 `.env` 及线上 `data/`。发布包不包含那些从未进入 GitHub 的线上原图。
 
-第一次启用 PostgreSQL 会导入随工程提供的59款随包产品，**不会自动迁移 Sites 上后来新增的数据**。切换前先从当前 `/api/catalog` 导出 data，用备份替换适配器读取的 seed.json，核对后再启用。已在 Sites 云存储中的文件仍由原站点地址提供；更换整个托管平台时需迁移这些文件并更新 URL。
+将生成的包和 `deploy/` 上传到 ECS，例如 `/tmp/pairdeer-deploy/`。也可以先在 ECS 检出本分支，仅从该目录执行部署脚本，而把构建任务放在另一台机器。
 
-## 4. 验收一次实际上传
+## 4. 初始化服务器配置并安装程序
 
-管理员入口 → 编辑产品 → 添加主图 → 选一张 JPG → 保存并发布。看到上传成功后，在另一设备打开产品页面；检查新图能显示和下载，再检查 OSS 对应 visual-assets 对象及 PostgreSQL 记录版本。
+在已上传本项目部署脚本的目录执行：
 
-如失败：签名失败查服务端环境变量；PUT失败查OSS跨域、地域、权限和凭证；图片无法显示查读取权限与图片基础URL；资料冲突重新加载后再编辑。任何错误都保留尚未发布的产品编辑内容。
+```bash
+sudo bash deploy/init-env.sh
+sudo env PATH=/usr/local/bin:/usr/bin:/bin bash deploy/install-release.sh /tmp/pairdeer-deploy/pairdeer-实际时间.tar.gz
+sudo systemctl status pairdeer --no-pager
+curl --fail http://127.0.0.1:3000/api/health
+```
 
-## 域名
+`init-env.sh` 为本机生成随机管理员密码和签名密钥，已有配置则拒绝覆盖。密码仅保存在 `/etc/pairdeer/pairdeer.env`，请在服务器内私下查看和保管。不要提交该文件。
 
-前台和管理员共用 shuanglu-battery.cn，无需为管理员另购域名。阿里云适配器可使用 api.shuanglu-battery.cn 子域名，或托管服务提供的 HTTPS 域名。按 Sites 返回的实际记录配置主域名，不要自行猜测 A/CNAME 值。解析和证书验证完成之前，使用 Sites 已发布链接验收。
+默认配置：
 
-## 本次已申请的域名绑定记录
+```dotenv
+NODE_ENV=production
+APP_ORIGIN=https://shuanglu-battery.cn
+DATA_DIR=/var/lib/pairdeer
+TRUST_PROXY=1
+ADMIN_ENTRY_PASSWORD=由初始化脚本生成
+ADMIN_SESSION_SECRET=由初始化脚本生成
+```
 
-Sites 已接受 `shuanglu-battery.cn`，目前等待 DNS 验证。请在阿里云 DNS 中设置以下记录；若 `@` 已指向其他正在使用的网站，请先核对，避免直接覆盖现有业务。
+- `ADMIN_ENTRY_PASSWORD` 至少 12 字符，`ADMIN_SESSION_SECRET` 至少 32 字符；空值不启用管理员访问。
+- 改动配置后执行 `sudo systemctl restart pairdeer`。更换会话密钥会使旧会话失效。
+- 生产 Cookie 始终为 Secure，只能通过 HTTPS 登录。`ALLOW_INSECURE_COOKIES=1` 只供非生产本地 HTTP 测试，生产环境不会采用它。
+- 普通访客浏览、素材下载不要求登录。管理员访问 `https://shuanglu-battery.cn/?admin=1`，输入服务器生成的密码即可，不需要 ChatGPT。
 
-|记录类型|主机记录|记录值|
-|---|---|---|
-|A|@|162.159.143.30|
-|A|@|172.66.3.26|
-|TXT|_openai-site-verification|openai-site-verification=yVN5tGyTuIjrSs8a6t3j1nGuLUjxQQFqnDKkuJlwSYE|
-|TXT|_cf-custom-hostname|e28387b4-5e70-4655-ac0c-15c5da509220|
+安装脚本更新程序软链接并重启服务，检查 `/api/health`；失败时尝试恢复上一程序版本。它不会配置 nginx、改 DNS 或删除已有数据。
 
-根域名使用上述 A 记录；不要同时为 @ 添加 CNAME。证书初始化与 DNS 验证可能需要等待。以上记录来自本次 Sites 返回结果，若以后重新建立域名绑定，以届时返回值为准。
+## 5. 迁移产品资料和完整媒体
 
-## www / admin 子域名记录
+**必须在正式域名切换前完成。** GitHub 主分支缺少完整线上媒体，不能仅运行样本数据后就切换网站。
 
-|记录类型|主机记录|记录值|
-|---|---|---|
-|CNAME|www|custom-domains.chatgpt.site.|
-|TXT|_openai-site-verification.www|openai-site-verification=dBCEaWO7Fdoy1hjNB2xht8jNEnuqFlB7vx1BgC5ydwE|
-|TXT|_cf-custom-hostname.www|173f515f-9656-4a90-99bb-197daa14069b|
-|CNAME|admin|custom-domains.chatgpt.site.|
-|TXT|_openai-site-verification.admin|openai-site-verification=DceZhfqvv-oW2XBdY6NbKIhEgHYcXXDYaxfb9LdYNtY|
-|TXT|_cf-custom-hostname.admin|aefbf8f4-20ba-453b-9a34-9dbb08e71f7b|
+先暂停新服务器写入：
 
-www 为浏览首页入口，admin 为管理工作台入口。两者使用同一产品API、数据库及素材仓库。管理员子域名本身不替代权限校验，所有写入与上传 API 均在服务端验证管理员身份。公网浏览者可看资料，但不会获得写入权限。
+```bash
+sudo systemctl stop pairdeer
+```
+
+如果旧站仍可访问，在 ECS 从旧网站读取当前产品目录与所需媒体：
+
+```bash
+sudo -u pairdeer env PATH=/usr/local/bin:/usr/bin:/bin node /opt/pairdeer/current/scripts/migrate-sites.mjs \
+  --source https://shuanglu-battery.cn \
+  --data-dir /var/lib/pairdeer
+```
+
+此时域名仍须指向旧站，否则会误向新站请求。旧平台仍可能拦截此导出请求；如遇到拦截，不要认为数据已迁移完成，改用完整离线备份。
+
+离线完整备份目录应包含 `catalog.json` 和 `media/`，如有 `objects.json` 校验清单一并保留：
+
+```bash
+sudo -u pairdeer env PATH=/usr/local/bin:/usr/bin:/bin node /opt/pairdeer/current/scripts/migrate-sites.mjs \
+  --backup-dir /路径/完整导出目录 \
+  --data-dir /var/lib/pairdeer
+```
+
+先确保 `pairdeer` 账号有权读取导出目录。脚本默认拒绝覆盖已有产品目录；若此前接口读取已生成样本目录，应先备份 `/var/lib/pairdeer`，核对导入来源后，才在导入命令末尾显式追加 `--replace`。不要把种子数据误当成线上最新快照。
+
+```bash
+sudo systemctl start pairdeer
+curl --fail http://127.0.0.1:3000/api/health
+```
+
+核对产品数量、轮播、文字、最新产品、原图及视频是否齐全，逐项检查迁移报告；仅目录导入成功不代表媒体文件齐全。旧的 ChatGPT 账号收藏不自动映射到新的签名浏览器收藏。
+
+## 6. 配置 HTTPS 与 nginx
+
+从阿里云证书管理控制台申请或下载 `shuanglu-battery.cn` 的 nginx 证书，将完整证书链和私钥安全上传到 ECS。证书域名必须匹配正式域名；以实际证书文件名为准。
+
+```bash
+sudo install -d -m 700 /etc/nginx/ssl
+sudo install -m 644 /路径/完整证书链.pem /etc/nginx/ssl/shuanglu-battery.cn.pem
+sudo install -m 600 /路径/证书私钥.key /etc/nginx/ssl/shuanglu-battery.cn.key
+sudo install -m 644 deploy/nginx.conf /etc/nginx/conf.d/pairdeer.conf
+sudo nginx -t
+sudo systemctl enable --now nginx
+sudo systemctl reload nginx
+```
+
+如使用自己的证书目录，同步修改 nginx 的两条证书路径。证书续期后校验 nginx 并重新加载。
+
+`deploy/nginx-bootstrap.conf` 仅用于切换前的 HTTP 浏览诊断，不能替代正式 HTTPS，不能用来验证生产管理员登录。如果使用 ACME 的 HTTP-01 方式申请证书，应按证书工具要求单独配置 challenge 位置；随包配置不自动申请证书。
+
+nginx 运行但请求返回 502 时，查看应用服务与 SELinux/审计日志。若 SELinux 阻止 nginx 连接回环上游，可按本机策略启用所需权限，例如 `sudo setsebool -P httpd_can_network_connect 1`；不要通过关闭 SELinux 解决。
+
+## 7. 切换前测试与 DNS
+
+先用临时本机 hosts 映射测试，或在能访问 ECS 的机器执行（保留 TLS 校验）：
+
+```bash
+curl --resolve shuanglu-battery.cn:443:123.56.252.14 \
+  --fail https://shuanglu-battery.cn/api/health
+curl --resolve shuanglu-battery.cn:443:123.56.252.14 \
+  --fail https://shuanglu-battery.cn/api/catalog
+```
+
+浏览器测试需要本机 hosts 将域名临时指向 ECS，测试完成后撤销该临时记录。测试浏览、搜索、筛选、原图与 ZIP 下载、视频、管理员登录、上传、编辑及另一个浏览器读取；重启 Node 服务后确认数据仍在。开发者工具的网络记录应不再出现 Sites / `chatgpt.site` 的应用请求。
+
+验收通过后，在域名的阿里云解析控制台把 `@` 改为 A 记录 `123.56.252.14`，移除同名旧 Sites 的两条 A 记录 `162.159.143.30` 和 `172.66.3.26`。不要删除邮箱 MX 及其他服务必要记录。`www` 如需使用，需另行配置 DNS、nginx、证书和允许的站点来源；当前默认只承接根域名。
+
+已有 ICP 备案还需核对其接入信息适用于本台阿里云实例。具体域名记录与回退方式见 [域名说明](docs/github-pages-domain.md)。
+
+## 8. 日志、备份和回滚
+
+```bash
+sudo journalctl -u pairdeer -n 100 --no-pager
+sudo systemctl restart pairdeer
+sudo bash /opt/pairdeer/current/deploy/backup.sh
+```
+
+备份脚本短暂停止应用，保存 SQLite、WAL 及媒体文件的一致快照，然后恢复原先运行状态。默认输出到仅 root 可读的 `/var/backups/pairdeer/`。将备份另存到独立存储，并单独保管 `/etc/pairdeer/pairdeer.env`。40 GiB 磁盘需要监测余量，媒体和多份备份会持续占空间。
+
+只回滚程序版本、不回滚数据：
+
+```bash
+sudo bash /opt/pairdeer/current/deploy/rollback.sh
+```
+
+需要恢复数据时先停止服务，把当前数据目录整体另行备份，再将已验证的快照解压到空的 `/var/lib/pairdeer`，恢复 `pairdeer:pairdeer` 所有权后启动。不要将旧备份直接混合解压覆盖新媒体目录。数据库结构不兼容时，程序和相应数据备份应一起恢复。
+
+## 可选的 RDS / OSS 适配
+
+默认不要设置 `CATALOG_API_URL`、`CATALOG_API_TOKEN`、`ALIYUN_SIGNER_URL`、`ALIYUN_SIGNER_TOKEN`；SQLite 和磁盘已满足独立部署。
+
+仓库的 `aliyun-service/` 仅保留为可选 PostgreSQL 产品目录和 OSS 签名适配器。若后续启用，需独立部署并验证数据库、RAM 权限、OSS 读取策略和精确来源 CORS。若 ZIP 下载需要读取外部 OSS 原图，再设置 `MEDIA_ALLOWED_HOSTS` 为允许的 HTTPS 存储主机名列表（逗号分隔，仅主机名），不允许未列出的外链或重定向；它不是完整网站启动入口，也不应把阿里云密钥交给浏览器。

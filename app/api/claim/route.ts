@@ -1,3 +1,4 @@
-import {validAccess} from '@/lib/admin-access';
-import {identity,db,bindings,sameOrigin,fail} from '@/lib/server';
-export async function POST(req:Request){try{sameOrigin(req);if(!await validAccess(req,bindings.ADMIN_SESSION_SECRET))return fail(new Error('请先输入管理员入口密码'),403);const w=await identity();if(!w.user)return fail(new Error('请先登录 ChatGPT'),401);const {code}=await req.json() as any;if(!bindings.ADMIN_SETUP_TOKEN||typeof code!=='string'||code!==bindings.ADMIN_SETUP_TOKEN)return fail(new Error('激活码不正确'),403);if(w.claimed)return fail(new Error('管理员已绑定，不能重复激活'),409);await db().prepare('INSERT OR IGNORE INTO admin (id,user_id) VALUES (1,?)').bind(w.user.userId).run();const after=await identity();if(!after.admin)return fail(new Error('管理员已被绑定'),409);return Response.json({ok:true});}catch(e){return fail(e)}}
+// ECS has an independently configured administrator; platform account claiming is retired.
+export async function POST() {
+ return Response.json({error:'管理员请使用本站管理员密码登录，无需激活外部账号。'},{status:410,headers:{'Cache-Control':'no-store'}});
+}
