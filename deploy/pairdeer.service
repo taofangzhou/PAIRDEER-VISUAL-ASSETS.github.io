@@ -1,0 +1,33 @@
+[Unit]
+Description=PAIRDEER visual assets website
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pairdeer
+Group=pairdeer
+WorkingDirectory=/opt/pairdeer/current
+EnvironmentFile=/etc/pairdeer/pairdeer.env
+Environment=NODE_ENV=production
+Environment=HOSTNAME=127.0.0.1
+Environment=PORT=3000
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=NEXT_TELEMETRY_DISABLED=1
+Environment=NODE_OPTIONS=--max-old-space-size=768
+ExecStartPre=/usr/bin/test -f /opt/pairdeer/current/server.js
+ExecStart=/usr/bin/env node /opt/pairdeer/current/server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/pairdeer
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

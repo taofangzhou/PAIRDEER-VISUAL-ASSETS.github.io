@@ -1,12 +1,14 @@
 import {bindings,db,sameOrigin,fail} from '@/lib/server';
 import {accessCookie,constantEqual,issueAccess} from '@/lib/admin-access';
+export const dynamic = 'force-dynamic';
 const headers = {'Cache-Control':'no-store'};
 export async function POST(req:Request) {
+ try {sameOrigin(req)} catch(e) {return fail(e,403)}
  try {
-  sameOrigin(req);
-  if(!bindings.ADMIN_ENTRY_PASSWORD || !bindings.ADMIN_SESSION_SECRET) throw new Error('管理员验证暂不可用，请联系网站拥有者');
-  // Atomic, durable limit: at most 5 attempts per network address per 15 minutes.
-  const address=req.headers.get('cf-connecting-ip')||req.headers.get('oai-authenticated-user-id')||'anonymous';
+  if(!bindings.ADMIN_ENTRY_PASSWORD || bindings.ADMIN_ENTRY_PASSWORD.length < 12 || !bindings.ADMIN_SESSION_SECRET || bindings.ADMIN_SESSION_SECRET.length < 32) throw new Error('管理员验证暂不可用，请联系网站拥有者');
+  // Nginx overwrites X-Real-IP; trust it only when the loopback app is behind that proxy.
+  // Without TRUST_PROXY, all clients share one durable limiter instead of trusting spoofed headers.
+  const address=bindings.TRUST_PROXY==='1'?(req.headers.get('x-real-ip')||'anonymous'):'anonymous';
   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(address));
   const key=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
   const window=Math.floor(Date.now()/900000);
