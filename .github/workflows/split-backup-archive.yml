@@ -1,0 +1,135 @@
+name: Publish resumable backup archive parts
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/split-backup-archive.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: split-existing-data-backup
+  cancel-in-progress: false
+
+jobs:
+  publish_parts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      BACKUP_TAG: data-backup-20261102T045044Z-41390483790
+      ARCHIVE_NAME: pairdeer-complete-data-backup-20261102T045044Z.tar.gz
+      ARCHIVE_SIZE: '575174060'
+      ARCHIVE_SHA256: 44a07874a52db0a6d85d1d9b84318c3479c93b7d2b4b197610c8b04d790c514a
+    steps:
+      - name: Check out the splitter from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Download only the already published backup archive and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/backup-source"
+          gh release download "$BACKUP_TAG" \
+            --pattern "$ARCHIVE_NAME" \
+            --pattern SHA256SUMS \
+            --dir "$RUNNER_TEMP/backup-source"
+
+      - name: Verify the original archive before splitting
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import os
+          from pathlib import Path
+          source = Path(os.environ['RUNNER_TEMP']) / 'backup-source'
+          name = os.environ['ARCHIVE_NAME']
+          archive = source / name
+          expected = os.environ['ARCHIVE_SHA256']
+          if archive.stat().st_size != int(os.environ['ARCHIVE_SIZE']):
+              raise SystemExit('Original archive size mismatch')
+          matching = []
+          for line in (source / 'SHA256SUMS').read_text(encoding='utf-8').splitlines():
+              fields = line.split(maxsplit=1)
+              if len(fields) == 2 and fields[1].lstrip('*') == name:
+                  matching.append(fields[0])
+          if matching != [expected]:
+              raise SystemExit('Original release checksum entry mismatch')
+          digest = hashlib.sha256()
+          with archive.open('rb') as handle:
+              for block in iter(lambda: handle.read(1024 * 1024), b''):
+                  digest.update(block)
+          if digest.hexdigest() != expected:
+              raise SystemExit('Original archive SHA256 mismatch')
+          print('Original 575174060-byte archive verified; no source Site was contacted.')
+          PY
+
+      - name: Split and verify recombination
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/split-backup-archive.py \
+            "$RUNNER_TEMP/backup-source/$ARCHIVE_NAME" \
+            --output-dir "$RUNNER_TEMP/backup-parts" \
+            --expected-size "$ARCHIVE_SIZE" \
+            --expected-sha256 "$ARCHIVE_SHA256"
+          cp scripts/download-backup-parts.mjs "$RUNNER_TEMP/backup-parts/download-backup-parts.mjs"
+          (
+            cd "$RUNNER_TEMP/backup-parts"
+            sha256sum download-backup-parts.mjs >> PARTS.SHA256SUMS
+          )
+
+      - name: Upload only the nine parts, manifests and download helper
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Generate a validated list, never a glob that could match the original
+          # archive or SHA256SUMS. --clobber applies only to these new asset names.
+          python3 - <<'PY' > "$RUNNER_TEMP/backup-part-paths.txt"
+          import json
+          import os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'backup-parts'
+          manifest = json.loads((root / 'PARTS.json').read_text(encoding='utf-8'))
+          expected_archive = {'name': os.environ['ARCHIVE_NAME'],
+                              'size': int(os.environ['ARCHIVE_SIZE']),
+                              'sha256': os.environ['ARCHIVE_SHA256']}
+          if manifest.get('schemaVersion') != 1 or manifest.get('archive') != expected_archive:
+              raise SystemExit('Split manifest does not match the original archive')
+          if manifest.get('partSize') != 67108864 or len(manifest.get('parts', [])) != 9:
+              raise SystemExit('Expected nine 64-MiB parts')
+          for index, part in enumerate(manifest['parts'], 1):
+              if part['name'] != expected_archive['name'] + f'.part-{index:03d}':
+                  raise SystemExit('Unexpected part name')
+              if part['size'] != (67108864 if index < 9 else 38303148):
+                  raise SystemExit('Unexpected part size')
+              print(root / part['name'])
+          print(root / 'PARTS.json')
+          print(root / 'PARTS.SHA256SUMS')
+          print(root / 'download-backup-parts.mjs')
+          PY
+          mapfile -t backup_uploads < "$RUNNER_TEMP/backup-part-paths.txt"
+          [[ ${#backup_uploads[@]} -eq 12 ]]
+          gh release upload "$BACKUP_TAG" "${backup_uploads[@]}" --clobber
+          {
+            echo '## Backup download parts published'
+            echo
+            echo "- Existing Release: $BACKUP_TAG"
+            echo '- Nine numbered parts: 001 through 009, 64 MiB each except the final 38,303,148-byte part.'
+            echo "- Original archive SHA256: $ARCHIVE_SHA256"
+            echo '- PARTS.SHA256SUMS also contains the download helper checksum.'
+            echo '- Original archive and SHA256SUMS were left unchanged.'
+            echo '- No new source data was exported; ECS, DNS and the old Site were unchanged.'
+          } >> "$GITHUB_STEP_SUMMARY"
