@@ -4,7 +4,11 @@
 
 ## 当前状态与完成标准
 
-截至本说明编写时（2026-11-02，北京时间），备份工作流已准备，但**尚未确认 GitHub 上已发布完整备份**。只存在目录 JSON、工作流代码或下载清单，不代表原始文件已经备份。
+2026-11-02 已完成首次完整产品数据备份：[成功的 Actions 运行](https://github.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io/actions/runs/41390483790)，[下载 Release](https://github.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io/releases/tag/data-backup-20261102T045044Z-41390483790)。
+
+已实际保存并核验 468 个云媒体文件、628 个 public 文件和 59 款产品目录（修订版 5）。压缩包为 `pairdeer-complete-data-backup-20261102T045044Z.tar.gz`，575,174,060 字节（约 548.5 MiB）。下载后独立复核了归档内 1,570 个声明文件的大小和 SHA-256，全部通过。
+
+压缩包 SHA-256：`44a07874a52db0a6d85d1d9b84318c3479c93b7d2b4b197610c8b04d790c514a`。源码或文件清单本身不等于完整备份；以上完成记录仅针对本次已验证的数据快照。
 
 本次来源为 `https://shuanglu-battery.cn`，目录快照为 `migration/source-catalog-20261102-r5.json`（修订版 5）。该快照、下载映射和项目的历史导入对象清单声明了 468 个媒体对象。完整性范围为当前产品引用及这些已登记的历史素材；它不是 R2 桶的全量列举，无法证明未登记、从未被引用的孤立对象也已导出。工作流仅在以下条件全部满足后提交并发布：
 
