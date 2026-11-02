@@ -20,6 +20,7 @@ jobs:
     timeout-minutes: 60
     env:
       BACKUP_TAG: data-backup-20261102T045044Z-41390483790
+      PARTS_TAG: data-backup-20261102T045044Z-parts
       ARCHIVE_NAME: pairdeer-complete-data-backup-20261102T045044Z.tar.gz
       ARCHIVE_SIZE: '575174060'
       ARCHIVE_SHA256: 44a07874a52db0a6d85d1d9b84318c3479c93b7d2b4b197610c8b04d790c514a
@@ -88,16 +89,17 @@ jobs:
             sha256sum download-backup-parts.mjs >> PARTS.SHA256SUMS
           )
 
-      - name: Upload only the nine parts, manifests and download helper
+      - name: Stage, verify and publish a separate immutable parts Release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         shell: bash
         run: |
           set -euo pipefail
-          # Generate a validated list, never a glob that could match the original
-          # archive or SHA256SUMS. --clobber applies only to these new asset names.
-          python3 - <<'PY' > "$RUNNER_TEMP/backup-part-paths.txt"
+          # Original BACKUP_TAG assets are immutable and are never modified.
+          # Prepare the exact local asset inventory before opening a new draft.
+          python3 - <<'PY_ASSETS' > "$RUNNER_TEMP/backup-part-paths.txt"
+          import hashlib
           import json
           import os
           from pathlib import Path
@@ -110,26 +112,124 @@ jobs:
               raise SystemExit('Split manifest does not match the original archive')
           if manifest.get('partSize') != 67108864 or len(manifest.get('parts', [])) != 9:
               raise SystemExit('Expected nine 64-MiB parts')
+          names = []
           for index, part in enumerate(manifest['parts'], 1):
               if part['name'] != expected_archive['name'] + f'.part-{index:03d}':
                   raise SystemExit('Unexpected part name')
               if part['size'] != (67108864 if index < 9 else 38303148):
                   raise SystemExit('Unexpected part size')
-              print(root / part['name'])
-          print(root / 'PARTS.json')
-          print(root / 'PARTS.SHA256SUMS')
-          print(root / 'download-backup-parts.mjs')
-          PY
-          mapfile -t backup_uploads < "$RUNNER_TEMP/backup-part-paths.txt"
-          [[ ${#backup_uploads[@]} -eq 12 ]]
-          gh release upload "$BACKUP_TAG" "${backup_uploads[@]}" --clobber
+              names.append(part['name'])
+          names += ['PARTS.json', 'PARTS.SHA256SUMS', 'download-backup-parts.mjs']
+          assets = {}
+          for name in names:
+              path = root / name
+              digest = hashlib.sha256()
+              with path.open('rb') as handle:
+                  for block in iter(lambda: handle.read(1024 * 1024), b''):
+                      digest.update(block)
+              assets[name] = {'size': path.stat().st_size, 'sha256': digest.hexdigest()}
+              print(path)
+          expected = {'assets': assets, 'marker':
+                      '<!-- pairdeer-backup-parts schema=1 source=' + os.environ['BACKUP_TAG'] +
+                      ' sha256=' + os.environ['ARCHIVE_SHA256'] + ' -->'}
+          (Path(os.environ['RUNNER_TEMP']) / 'expected-part-assets.json').write_text(
+              json.dumps(expected), encoding='utf-8')
+          PY_ASSETS
+          cat > "$RUNNER_TEMP/verify-part-release.py" <<'PY_VERIFY'
+          import json
+          import os
+          from pathlib import Path
+          import sys
+          root = Path(os.environ['RUNNER_TEMP'])
+          expected = json.loads((root / 'expected-part-assets.json').read_text())
+          release = json.loads((root / 'parts-release.json').read_text())
+          mode = sys.argv[1]
+          if release.get('tag_name') != os.environ['PARTS_TAG']:
+              raise SystemExit('Wrong parts release tag')
+          draft = release.get('draft')
+          if not isinstance(draft, bool):
+              raise SystemExit('Missing release draft status')
+          if draft and expected['marker'] not in (release.get('body') or ''):
+              raise SystemExit('Refusing to modify a draft not created by this backup publisher')
+          assets = release.get('assets', [])
+          names = [item['name'] for item in assets]
+          if len(names) != len(set(names)) or not set(names).issubset(expected['assets']):
+              raise SystemExit('Unexpected or duplicate assets in parts release')
+          # A draft from an interrupted run may contain a subset. Only our own
+          # draft can be resumed; an already-public release must match exactly.
+          if mode != 'preflight' or not draft:
+              if set(names) != set(expected['assets']):
+                  raise SystemExit('Parts release does not contain all twelve expected assets')
+              for asset in assets:
+                  local = expected['assets'][asset['name']]
+                  if asset.get('size') != local['size'] or asset.get('digest') != 'sha256:' + local['sha256']:
+                      raise SystemExit('REST size/SHA256 mismatch: ' + asset['name'])
+                  if asset.get('state') != 'uploaded':
+                      raise SystemExit('Asset upload is not complete: ' + asset['name'])
+          if mode == 'published' and draft:
+              raise SystemExit('Parts release is still a draft')
+          print('draft' if draft else 'published')
+          PY_VERIFY
+          marker=$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/expected-part-assets.json"))["marker"])')
+          cat > "$RUNNER_TEMP/parts-release-notes.md" <<NOTES
+          $marker
+
+          Nine verified parts of the existing complete product-data backup.
+          Source archive Release: $BACKUP_TAG
+          Original archive size: $ARCHIVE_SIZE bytes
+          Original archive SHA256: $ARCHIVE_SHA256
+
+          Includes PARTS.json, PARTS.SHA256SUMS and the HTTP/1.1 resumable download helper.
+          All twelve asset sizes and SHA256 digests are verified through the GitHub REST API before publication.
+          The original archive Release is unchanged. No new Site data was exported; ECS and DNS were unchanged.
+          NOTES
+          # gh's field is isDraft; REST's corresponding field is draft.
+          if ! gh release view "$PARTS_TAG" --json isDraft > "$RUNNER_TEMP/parts-release-status.json"; then
+            gh release create "$PARTS_TAG" --draft \
+              --target "$(git rev-parse HEAD)" \
+              --title '双鹿电池完整备份 · 64 MiB 分片下载' \
+              --notes-file "$RUNNER_TEMP/parts-release-notes.md"
+          fi
+          # Resolve by authenticated release ID: the tag endpoint can omit
+          # unpublished drafts, while the releases list includes owned drafts.
+          gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$PARTS_TAG\") | .id" \
+            > "$RUNNER_TEMP/parts-release-id.txt"
+          release_id=$(cat "$RUNNER_TEMP/parts-release-id.txt")
+          [[ $release_id =~ ^[0-9]+$ ]] || { echo 'Could not resolve one parts Release ID.' >&2; exit 1; }
+          gh api "repos/$GH_REPO/releases/$release_id" > "$RUNNER_TEMP/parts-release.json"
+          release_state=$(python3 "$RUNNER_TEMP/verify-part-release.py" preflight)
+          if [[ $release_state == draft ]]; then
+            mapfile -t backup_uploads < "$RUNNER_TEMP/backup-part-paths.txt"
+            [[ ${#backup_uploads[@]} -eq 12 ]]
+            # Clobber is restricted to these twelve names on our new DRAFT.
+            gh release upload "$PARTS_TAG" "${backup_uploads[@]}" --clobber
+          else
+            echo 'Existing public parts Release matches all twelve local assets; leaving it unchanged.'
+          fi
+          verified=false
+          for attempt in 1 2 3 4 5; do
+            gh api "repos/$GH_REPO/releases/$release_id" > "$RUNNER_TEMP/parts-release.json"
+            if python3 "$RUNNER_TEMP/verify-part-release.py" complete; then
+              verified=true
+              break
+            fi
+            sleep 3
+          done
+          [[ $verified == true ]] || { echo 'REST asset verification failed; parts Release will not be published.' >&2; exit 1; }
+          if [[ $release_state == draft ]]; then
+            # Publishing applies the repository's immutable-release policy.
+            gh release edit "$PARTS_TAG" --draft=false
+          fi
+          gh api "repos/$GH_REPO/releases/$release_id" > "$RUNNER_TEMP/parts-release.json"
+          python3 "$RUNNER_TEMP/verify-part-release.py" published
           {
-            echo '## Backup download parts published'
+            echo '## Backup download parts published and verified'
             echo
-            echo "- Existing Release: $BACKUP_TAG"
-            echo '- Nine numbered parts: 001 through 009, 64 MiB each except the final 38,303,148-byte part.'
+            echo "- Parts Release: $PARTS_TAG"
+            echo "- Original archive Release: $BACKUP_TAG (unchanged)"
+            echo '- Nine numbered parts: 001 through 009; all twelve assets passed REST SHA256 and size verification.'
             echo "- Original archive SHA256: $ARCHIVE_SHA256"
-            echo '- PARTS.SHA256SUMS also contains the download helper checksum.'
-            echo '- Original archive and SHA256SUMS were left unchanged.'
+            echo '- No immutable Release assets were replaced or removed.'
             echo '- No new source data was exported; ECS, DNS and the old Site were unchanged.'
           } >> "$GITHUB_STEP_SUMMARY"

@@ -8,7 +8,7 @@ import { basename, dirname, join, parse, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { fileURLToPath } from 'node:url';
 
-export const RELEASE_URL = 'https://github.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io/releases/download/data-backup-20261102T045044Z-41390483790';
+export const RELEASE_URL = 'https://github.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io/releases/download/data-backup-20261102T045044Z-parts';
 export const EXPECTED_ARCHIVE = Object.freeze({
   name: 'pairdeer-complete-data-backup-20261102T045044Z.tar.gz',
   size: 575174060,

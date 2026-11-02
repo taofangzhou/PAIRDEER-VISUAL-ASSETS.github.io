@@ -47,9 +47,9 @@ done
 
 ## 方式二：自动下载和校验 9 个分片
 
-[split-backup-archive.yml](../.github/workflows/split-backup-archive.yml) 只读取已发布的上述压缩包，核对完整大小和 SHA 后分成 64 MiB 的块。它将新资产上传到同一个 Release，不修改原压缩包或原 `SHA256SUMS`。
+[split-backup-archive.yml](../.github/workflows/split-backup-archive.yml) 只读取已发布的上述压缩包，核对完整大小和 SHA 后分成 64 MiB 的块。原备份 Release 启用了不可变保护，分片使用独立的 [分片 Release](https://github.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io/releases/tag/data-backup-20261102T045044Z-parts)，不修改原压缩包或原 `SHA256SUMS`。工作流先将 12 个资产上传到新草稿，通过 GitHub REST 接口逐一核对实际大小和 SHA256 后才正式发布；发布后按仓库策略锁定。已公开的同名版本只允许核验，不会替换资产。
 
-分片发布任务成功后，同一个 Release 中应包含：
+分片发布任务成功后，新分片 Release 中应包含：
 
 - `<原压缩包名>.part-001` 到 `.part-009`：前 8 片各 `67108864` 字节，第 9 片 `38303148` 字节。
 - `PARTS.json`：整包及每片的名称、大小和 SHA256。
@@ -61,7 +61,7 @@ done
 ECS 需要已安装 Node.js 24。将小型下载工具放在 `/tmp`，指定**现有压缩包所在目录**，例如它在 `/tmp/pairdeer-backup/`：
 
 ```bash
-release_url=https://github.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io/releases/download/data-backup-20261102T045044Z-41390483790
+release_url=https://github.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io/releases/download/data-backup-20261102T045044Z-parts
 curl --http1.1 --fail --location --retry 5 \
   --connect-timeout 30 --output /tmp/download-backup-parts.mjs \
   "$release_url/download-backup-parts.mjs"
