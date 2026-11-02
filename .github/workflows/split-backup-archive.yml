@@ -21,6 +21,7 @@ jobs:
     env:
       BACKUP_TAG: data-backup-20261102T045044Z-41390483790
       PARTS_TAG: data-backup-20261102T045044Z-parts
+      PARTS_RELEASE_ID: '431166826'
       ARCHIVE_NAME: pairdeer-complete-data-backup-20261102T045044Z.tar.gz
       ARCHIVE_SIZE: '575174060'
       ARCHIVE_SHA256: 44a07874a52db0a6d85d1d9b84318c3479c93b7d2b4b197610c8b04d790c514a
@@ -183,20 +184,11 @@ jobs:
           All twelve asset sizes and SHA256 digests are verified through the GitHub REST API before publication.
           The original archive Release is unchanged. No new Site data was exported; ECS and DNS were unchanged.
           NOTES
-          # gh's field is isDraft; REST's corresponding field is draft.
-          if ! gh release view "$PARTS_TAG" --json isDraft > "$RUNNER_TEMP/parts-release-status.json"; then
-            gh release create "$PARTS_TAG" --draft \
-              --target "$(git rev-parse HEAD)" \
-              --title '双鹿电池完整备份 · 64 MiB 分片下载' \
-              --notes-file "$RUNNER_TEMP/parts-release-notes.md"
-          fi
-          # Resolve by authenticated release ID: the tag endpoint can omit
-          # unpublished drafts, while the releases list includes owned drafts.
-          gh api --paginate "repos/$GH_REPO/releases?per_page=100" \
-            --jq ".[] | select(.tag_name == \"$PARTS_TAG\") | .id" \
-            > "$RUNNER_TEMP/parts-release-id.txt"
-          release_id=$(cat "$RUNNER_TEMP/parts-release-id.txt")
-          [[ $release_id =~ ^[0-9]+$ ]] || { echo 'Could not resolve one parts Release ID.' >&2; exit 1; }
+          # This recovery job resumes the already-created, owner-verified draft.
+          # Resolve neither tag visibility nor a quoted jq expression: use its
+          # fixed REST ID, then verify tag/ownership/assets before any upload.
+          release_id=$PARTS_RELEASE_ID
+          [[ $release_id =~ ^[0-9]+$ ]] || { echo 'Invalid parts Release ID.' >&2; exit 1; }
           gh api "repos/$GH_REPO/releases/$release_id" > "$RUNNER_TEMP/parts-release.json"
           release_state=$(python3 "$RUNNER_TEMP/verify-part-release.py" preflight)
           if [[ $release_state == draft ]]; then
