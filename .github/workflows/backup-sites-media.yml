@@ -1,0 +1,227 @@
+name: Back up complete Sites product media
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/backup-sites-media.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sites-data-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      SOURCE_URL: https://shuanglu-battery.cn
+      SOURCE_CATALOG: migration/source-catalog-20261102-r5.json
+      EXPECTED_MEDIA_COUNT: '468'
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Prepare independent backup verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --quiet
+          git diff --cached --quiet
+          cat > "$RUNNER_TEMP/verify-sites-backup.mjs" <<'NODE'
+          import assert from 'node:assert/strict';
+          import {createHash} from 'node:crypto';
+          import {lstat, open, readFile, readdir, realpath} from 'node:fs/promises';
+          import {resolve, sep} from 'node:path';
+          import {pathToFileURL} from 'node:url';
+          const root = resolve(process.env.GITHUB_WORKSPACE);
+          const output = resolve(root, 'backup');
+          const {verifySiteBackup} = await import(pathToFileURL(resolve(root, 'scripts/export-sites-backup.mjs')).href);
+          await verifySiteBackup({output, projectRoot: root,
+            catalogFile: resolve(root, process.env.SOURCE_CATALOG), source: process.env.SOURCE_URL});
+          const manifest = JSON.parse(await readFile(resolve(output, 'backup-manifest.json'), 'utf8'));
+          const objects = JSON.parse(await readFile(resolve(output, 'objects.json'), 'utf8'));
+          assert.equal(manifest.complete, true, 'Exporter did not certify a complete backup');
+          assert.equal(manifest.mediaCount, Number(process.env.EXPECTED_MEDIA_COUNT), 'Unexpected media count for the verified revision-5 snapshot');
+          assert.equal(manifest.media.length, manifest.mediaCount);
+          assert.deepEqual(Object.keys(objects).sort(), manifest.media.map(item => item.key).sort());
+          const allowedBackupFiles = new Set(['catalog.json', 'objects.json', 'backup-manifest.json']);
+          async function check(base, record) {
+            assert.equal(typeof record.path, 'string');
+            assert.match(record.sha256, /^[a-f0-9]{64}$/);
+            assert.ok(Number.isSafeInteger(record.size) && record.size >= 0);
+            const file = resolve(base, record.path);
+            assert.ok(file.startsWith(base + sep), `Out-of-tree path: ${record.path}`);
+            assert.equal(await realpath(file), file, `Symlink in backup input: ${record.path}`);
+            const info = await lstat(file);
+            assert.ok(info.isFile() && !info.isSymbolicLink(), `Not a regular file: ${record.path}`);
+            assert.equal(info.size, record.size, `Size mismatch: ${record.path}`);
+            const hash = createHash('sha256');
+            const handle = await open(file, 'r');
+            try { for await (const bytes of handle.createReadStream()) hash.update(bytes); }
+            finally { await handle.close(); }
+            assert.equal(hash.digest('hex'), record.sha256, `SHA256 mismatch: ${record.path}`);
+          }
+          await check(output, manifest.catalog);
+          await check(output, manifest.objectsManifest);
+          let mediaBytes = 0;
+          for (const item of manifest.media) {
+            assert.equal(item.path, `media/${item.key}`);
+            assert.ok(item.size < 100 * 1024 * 1024, `File exceeds GitHub's normal Git limit: ${item.key}`);
+            assert.equal(item.sha256, objects[item.key].sha256);
+            assert.equal(item.size, objects[item.key].size);
+            assert.equal(item.mime, objects[item.key].mime);
+            await check(output, item);
+            await check(output, item.metadata);
+            allowedBackupFiles.add(item.path);
+            allowedBackupFiles.add(item.metadata.path);
+            mediaBytes += item.size;
+          }
+          assert.equal(mediaBytes, manifest.mediaBytes);
+          for (const item of [...manifest.public, ...manifest.sourceFiles]) await check(root, item);
+          async function listFiles(directory, prefix = '') {
+            const files = [];
+            for (const entry of await readdir(directory, {withFileTypes: true})) {
+              const relative = prefix + entry.name;
+              if (entry.isDirectory()) files.push(...await listFiles(resolve(directory, entry.name), relative + '/'));
+              else { assert.ok(entry.isFile(), `Unexpected backup entry: ${relative}`); files.push(relative); }
+            }
+            return files;
+          }
+          assert.deepEqual((await listFiles(output)).sort(), [...allowedBackupFiles].sort(), 'Unexpected or missing backup files');
+          console.log(`Verified complete backup: ${manifest.mediaCount} media objects, ${manifest.mediaBytes} media bytes, ${manifest.public.length} public files.`);
+          NODE
+
+      - name: Export the source catalog and every original media object
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/export-sites-backup.mjs \
+            --source "$SOURCE_URL" \
+            --catalog-file "$SOURCE_CATALOG" \
+            --output backup \
+            --replace
+          node "$RUNNER_TEMP/verify-sites-backup.mjs"
+
+      - name: Commit verified data only and push without force
+        id: publish_data
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The exporter may change only the declared backup outputs.
+          node --input-type=module <<'NODE'
+          import {execFileSync} from 'node:child_process';
+          import assert from 'node:assert/strict';
+          const changed = execFileSync('git', ['status', '--porcelain=v1', '-z', '--untracked-files=all'], {encoding:'utf8'}).split('\0').filter(Boolean);
+          for (const entry of changed) assert.ok(entry.slice(3).startsWith('backup/'), `Refusing unrelated changes: ${entry.slice(3)}`);
+          NODE
+          git add -- backup/catalog.json backup/objects.json backup/media backup/backup-manifest.json
+          # Rebase also creates commits, so configure this checkout's identity.
+          git config --local user.name 'github-actions[bot]'
+          git config --local user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if ! git diff --cached --quiet; then
+            git commit -m 'Back up complete Sites catalog and original media requested by owner'
+          fi
+          pushed=false
+          for attempt in 1 2 3; do
+            git fetch --no-tags origin main
+            git rebase origin/main
+            # Rebase may bring new source files into main; recheck their hashes.
+            node "$RUNNER_TEMP/verify-sites-backup.mjs"
+            node --input-type=module <<'NODE'
+          import {execFileSync} from 'node:child_process';
+          import assert from 'node:assert/strict';
+          const paths = execFileSync('git', ['diff', '--name-only', '-z', 'origin/main', 'HEAD'], {encoding:'utf8'}).split('\0').filter(Boolean);
+          for (const path of paths) assert.ok(path.startsWith('backup/'), `Refusing to publish unrelated edits: ${path}`);
+          NODE
+            if git push origin HEAD:main; then
+              pushed=true
+              break
+            fi
+          done
+          [[ $pushed == true ]] || { echo 'Could not safely push verified backup; no release will be published.' >&2; exit 1; }
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Package the complete data backup and checksums
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          node "$RUNNER_TEMP/verify-sites-backup.mjs"
+          backup_stamp=$(date -u +%Y%m%dT%H%M%SZ)
+          archive_name=pairdeer-complete-data-backup-$backup_stamp.tar.gz
+          artifact_dir=work/data-backup-artifacts
+          mkdir -p "$artifact_dir"
+          tar -czf "$artifact_dir/$archive_name" \
+            backup public lib/download-map.json scripts/migrate-sites.mjs \
+            scripts/export-sites-backup.mjs "$SOURCE_CATALOG" \
+            README.md ALIYUN_DEPLOY.md deploy docs
+          archive_bytes=$(stat -c '%s' "$artifact_dir/$archive_name")
+          [[ $archive_bytes -lt 2147483648 ]] || { echo 'Archive exceeds the GitHub Release asset limit; not publishing an incomplete substitute.' >&2; exit 1; }
+          cp backup/backup-manifest.json "$artifact_dir/backup-manifest.json"
+          cp backup/objects.json "$artifact_dir/objects.json"
+          (
+            cd "$artifact_dir"
+            sha256sum "$archive_name" backup-manifest.json objects.json > SHA256SUMS
+          )
+          echo "archive=$artifact_dir/$archive_name" >> "$GITHUB_OUTPUT"
+          echo "tag=data-backup-$backup_stamp-$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=pairdeer-complete-data-backup-$backup_stamp" >> "$GITHUB_OUTPUT"
+          cat > "$RUNNER_TEMP/sites-backup-release-notes.md" <<NOTES
+          Complete product-data backup requested by the repository owner.
+
+          Source: $SOURCE_URL
+          Catalog snapshot: $SOURCE_CATALOG
+          Verified Git commit: ${{ steps.publish_data.outputs.commit }}
+
+          All 468 declared media objects, metadata sidecars, catalog, checksums,
+          existing public assets and the restore tool were verified before publication.
+          Download the .tar.gz and SHA256SUMS together; validate with sha256sum -c SHA256SUMS.
+          This archive is a data backup, not a claim that ECS or DNS has been migrated.
+          NOTES
+          {
+            echo '## Complete Sites data backup verified'
+            echo
+            echo "- Verified backup commit: ${{ steps.publish_data.outputs.commit }}"
+            echo "- Archive: $archive_name ($archive_bytes bytes)"
+            echo '- Media objects: 468; every declared SHA256 and size verified.'
+            echo '- DNS and the old Site were unchanged.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain a downloadable backup artifact for 30 days
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.artifact_name }}
+          path: work/data-backup-artifacts/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Publish the verified archive as a GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create '${{ steps.package.outputs.tag }}' \
+            '${{ steps.package.outputs.archive }}' \
+            work/data-backup-artifacts/SHA256SUMS \
+            work/data-backup-artifacts/backup-manifest.json \
+            work/data-backup-artifacts/objects.json \
+            --target '${{ steps.publish_data.outputs.commit }}' \
+            --title '双鹿电池完整资料备份 · 468 个媒体对象' \
+            --notes-file "$RUNNER_TEMP/sites-backup-release-notes.md"
