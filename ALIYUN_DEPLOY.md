@@ -1,8 +1,10 @@
 # 阿里云 ECS 独立部署
 
-本分支把网站本身部署到 ECS，使用 Node.js 24 LTS、Next.js standalone、SQLite 和 ECS 磁盘存储。默认不使用 Sites、ChatGPT 登录、D1、R2、RDS 或 OSS。
+本项目把网站本身部署到 ECS，使用 Node.js 24 LTS、Next.js standalone、SQLite 和 ECS 磁盘存储。默认不使用 Sites、ChatGPT 登录、D1、R2、RDS 或 OSS。
 
 目标：Alibaba Cloud Linux 3 x86_64，2 核 / 2 GiB，40 GiB 磁盘，公网 IP `123.56.252.14`，域名 `shuanglu-battery.cn`。公网带宽为 3 Mbps，原图/视频下载速度受此带宽限制；后续可配置自己的 OSS/CDN，但不影响本次独立运行。
+
+正式部署代码位于 GitHub 默认 `main` 分支。网站运行不需要 GPT、Codex、Sites 账号或 API Key；关闭聊天、退出相关客户端不会影响 ECS 上的服务。
 
 这些文件是部署准备，不能替代实际服务器操作。本次源代码修改不会自动连接 ECS、导入线上素材、安装证书或修改 DNS。
 
@@ -38,14 +40,14 @@ node -v
 建议在 Linux x64 的开发机或 CI 构建。2 GiB ECS 可运行应用，但构建会占用更多内存；不要在正在服务的进程旁反复构建。如果只能在 ECS 构建，请在维护窗口检查内存及已有 SWAP 后进行。
 
 ```bash
-# 进入本分支检出目录，按仓库锁文件安装依赖。
+# 进入 main 分支源码目录，按仓库锁文件安装依赖。
 npm ci
 bash deploy/package-release.sh
 ```
 
 脚本执行生产构建，生成 `work/releases/pairdeer-时间.tar.gz`，包含 standalone Node 服务、静态资源和部署工具，不含 `.env` 及线上 `data/`。发布包不包含那些从未进入 GitHub 的线上原图。
 
-将生成的包和 `deploy/` 上传到 ECS，例如 `/tmp/pairdeer-deploy/`。也可以先在 ECS 检出本分支，仅从该目录执行部署脚本，而把构建任务放在另一台机器。
+将生成的包和 `deploy/` 上传到 ECS，例如 `/tmp/pairdeer-deploy/`。也可以先在 ECS 获取 main 分支源码，仅从该目录执行部署脚本，而把构建任务放在另一台机器。
 
 ## 4. 初始化服务器配置并安装程序
 

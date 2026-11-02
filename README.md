@@ -2,9 +2,24 @@
 
 产品资料浏览、搜索、分类、图片/视频预览、原图及素材 ZIP 下载，以及管理员资料编辑与上传。
 
-本分支将运行方式改为 **阿里云 ECS 独立托管**：Next.js 16 / Node.js 24 LTS + SQLite + ECS 磁盘文件存储。页面、接口、数据库、素材读取和管理员登录均在自己的服务器运行，正常使用不再需要 Sites / `chatgpt.site`。GitHub 用于保存源码，不通过 GitHub Pages 执行这个全栈应用。
+本项目使用 **阿里云 ECS 独立托管**：Next.js 16 / Node.js 24 LTS + SQLite + ECS 磁盘文件存储。页面、接口、数据库、素材读取和管理员登录均在自己的服务器运行，正常使用不再需要 Sites / `chatgpt.site`。GitHub 用于保存源码，不通过 GitHub Pages 执行这个全栈应用。
 
 目标服务器为 Alibaba Cloud Linux 3、2 核 / 2 GiB、40 GiB 磁盘，公网 IP `123.56.252.14`；目标域名为 `https://shuanglu-battery.cn/`。这些是部署配置目标，**代码变更不代表服务器、素材或 DNS 已完成切换**。
+
+## 独立运行与源码位置
+
+正式部署源码位于默认 `main` 分支。分支名只是 Git 的代码版本标识，不是网站运行所需的服务。
+
+网站启动、浏览、下载、管理员登录和上传均不需要 ChatGPT / Codex 账号、API Key、网页会话或客户端。ECS 上的 systemd 服务负责开机启动与进程重启。部署完成后，网站也不需要持续连接 GitHub；GitHub 仅用于获取或更新源码。
+
+`scripts/migrate-sites.mjs` 只在一次性迁移旧站资料时访问旧来源；实际运行读取的是 ECS 本机数据库及媒体文件。代码中的旧域名禁止规则不会向旧平台发起请求。
+
+首次获取源码：
+
+```bash
+git clone --depth 1 --branch main https://github.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io.git
+cd PAIRDEER-VISUAL-ASSETS.github.io
+```
 
 ## 本地运行
 

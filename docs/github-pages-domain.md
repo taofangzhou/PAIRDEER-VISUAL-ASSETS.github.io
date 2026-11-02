@@ -1,6 +1,6 @@
 # 自定义域名改由阿里云 ECS 承接
 
-本分支目标：`https://shuanglu-battery.cn/` → 阿里云 ECS `123.56.252.14` → nginx HTTPS → 回环 Node 服务。GitHub 保存源码，GitHub Pages 不运行数据库、上传或管理员接口。
+部署目标：`https://shuanglu-battery.cn/` → 阿里云 ECS `123.56.252.14` → nginx HTTPS → 回环 Node 服务。GitHub 保存源码，GitHub Pages 不运行数据库、上传或管理员接口。
 
 这是一份待实施的切换配置，不表示 DNS 或 ECS 已变更。先完成 [ECS 部署、完整数据迁移和验收](../ALIYUN_DEPLOY.md)，再调整正式域名。
 
