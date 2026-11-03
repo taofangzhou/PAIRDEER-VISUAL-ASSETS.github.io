@@ -4,6 +4,20 @@
 
 本说明适用于已经按仓库标准部署的站点：`/opt/pairdeer/current`、systemd `pairdeer`、数据目录 `/var/lib/pairdeer`、nginx 配置 `/etc/nginx/conf.d/pairdeer.conf`。以下命令均在阿里云 ECS **Workbench 终端**执行。它们不会更改管理员密码、域名解析或证书。
 
+## 已执行更新、网站仍显示旧导航时
+
+在 Workbench 复制以下命令。脚本会重新获取源码，逐步核验源码栏目、两份原文件、构建页面、发布包和实际运行进程；只有首页两个栏目及 PDF、视频读取全部通过后才报告成功。构建在新的 `/opt/pairdeer-builds/` 目录完成，完整日志保存在 `/var/log/pairdeer/`。备份阶段会短暂停止网站并自动恢复，安装阶段会重启服务；数据和密码配置保留。安装后验证失败时，脚本尝试恢复本次更新前的程序及 systemd 配置。
+
+```bash
+cd /tmp
+curl --fail --show-error --location --retry 3 --connect-timeout 15 --max-time 90 https://raw.githubusercontent.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io/main/deploy/upgrade-company-materials.sh -o /tmp/pairdeer-company-upgrade.sh && \
+bash -n /tmp/pairdeer-company-upgrade.sh && \
+sudo bash /tmp/pairdeer-company-upgrade.sh
+sudo bash -c 'latest=$(ls -1t /var/log/pairdeer/company-upgrade-*.log | sed -n "1p"); tail -n 80 "$latest"'
+```
+
+若检查提示内存与 SWAP 合计不足 3 GiB，请先按下方第 1 步准备构建 SWAP，再重新运行脚本。构建磁盘至少需要 5 GiB 可用空间，备份前还会核对完整资料备份所需空间。脚本发现已有升级运行时会停止，避免重复执行。看到「更新成功」后，直接前往第 5 步浏览器验收；失败时根据最后一条命令显示的具体阶段和错误处理。
+
 ## 1. 检查现有网站
 
 先执行：
