@@ -1,0 +1,169 @@
+# 公司介绍 PPT 与视频：ECS 更新步骤
+
+网站的「双鹿电池介绍PPT」「公司介绍视频」位于首页导航中「素材使用指南」之后。访客可以预览和下载；管理员登录原后台后可以分别替换 `.pptx`、`.mp4`。PPT 由 **您自己的 ECS 上的 LibreOffice** 生成 PDF 预览，下载仍提供原始 PPTX；不调用外部 Office、GPT、Codex 或 Sites 的预览、管理、存储服务。
+
+本说明适用于已经按仓库标准部署的站点：`/opt/pairdeer/current`、systemd `pairdeer`、数据目录 `/var/lib/pairdeer`、nginx 配置 `/etc/nginx/conf.d/pairdeer.conf`。以下命令均在阿里云 ECS **Workbench 终端**执行。它们不会更改管理员密码、域名解析或证书。
+
+## 1. 检查现有网站
+
+先执行：
+
+```bash
+node -v
+sudo systemctl status pairdeer --no-pager
+curl --fail http://127.0.0.1:3000/api/health
+free -h
+df -h / /tmp /var/lib/pairdeer
+```
+
+需要 Node.js 24 或以上。保留足够空间容纳源码、依赖、构建产物及当前数据备份；建议至少有 5 GiB 可用空间。2 GiB ECS 在本机构建时建议有至少 2 GiB SWAP。已有足够 SWAP 时跳过下列命令；无 SWAP 且磁盘充足时，可为此次构建准备：
+
+```bash
+set -euo pipefail
+if [ "$(awk '/SwapTotal:/ {print $2}' /proc/meminfo)" -lt 2097152 ]; then
+  sudo install -d -m 700 /var/swap
+  if sudo test -e /var/swap/pairdeer-build.swap; then
+    echo '构建 SWAP 文件已存在，请先检查 swapon --show；本段不会覆盖它。'
+    exit 1
+  fi
+  sudo dd if=/dev/zero of=/var/swap/pairdeer-build.swap bs=1M count=2048 status=progress
+  sudo chmod 600 /var/swap/pairdeer-build.swap
+  sudo mkswap /var/swap/pairdeer-build.swap
+  sudo swapon /var/swap/pairdeer-build.swap
+fi
+swapon --show
+```
+
+此 SWAP 不修改 `/etc/fstab`，重启服务器后不会自动启用。它位于应用数据目录之外，不会混入网站资料备份。
+
+仓库随附的公司介绍视频为 `public/assets/company/company-introduction.mp4`，发布包会包含它。原 PPT 若尚未导入，请在完成部署后按第 3 步从网站后台上传，或通过 Workbench 文件传输导入。
+
+## 2. 获取新代码、保留数据并部署
+
+将以下**整个代码块**复制到同一个 Workbench 终端执行。源码放在自动生成的新目录，不会覆盖您原来的源码目录。稀疏检出排除与本次构建无关的历史大备份目录，减少下载量。
+
+```bash
+set -euo pipefail
+test "$(node -p 'process.versions.node.split(".")[0]')" -ge 24
+sudo systemctl is-active --quiet pairdeer
+sudo bash /opt/pairdeer/current/deploy/backup.sh
+
+if ! command -v git >/dev/null 2>&1; then
+  if command -v dnf >/dev/null 2>&1; then
+    sudo dnf install -y git
+  elif command -v apt-get >/dev/null 2>&1; then
+    sudo apt-get update
+    sudo apt-get install -y git
+  else
+    sudo yum install -y git
+  fi
+fi
+
+PAIRDEER_SOURCE_DIR=$(mktemp -d /tmp/pairdeer-company-source.XXXXXX)
+git clone --depth 1 --filter=blob:none --sparse --branch main \
+  https://github.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io.git \
+  "$PAIRDEER_SOURCE_DIR"
+git -C "$PAIRDEER_SOURCE_DIR" sparse-checkout set --no-cone '/*' '!/backup/'
+cd "$PAIRDEER_SOURCE_DIR"
+
+npm ci --cache "$PAIRDEER_SOURCE_DIR/work/npm-cache"
+NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS=--max-old-space-size=1536 npm run build
+bash deploy/package-release.sh --skip-build "$PAIRDEER_SOURCE_DIR/work/releases"
+
+# 在 ECS 安装 LibreOffice、中文字体；只调整本网站的公司素材上传 location。
+# 原 nginx 文件会备份，校验或重载失败会恢复它。
+sudo bash deploy/update-company-materials.sh
+
+PAIRDEER_ARCHIVE=$(find "$PAIRDEER_SOURCE_DIR/work/releases" -maxdepth 1 -type f -name 'pairdeer-*.tar.gz' -print -quit)
+test -n "$PAIRDEER_ARCHIVE"
+sudo env PATH=/usr/local/bin:/usr/bin:/bin bash deploy/install-release.sh "$PAIRDEER_ARCHIVE"
+
+curl --fail http://127.0.0.1:3000/api/health
+printf '\n本次源码目录：%s\n' "$PAIRDEER_SOURCE_DIR"
+```
+
+构建期间旧程序继续运行，构建失败不会安装新版本。安装器会重启服务并检查健康接口，失败时尝试退回上一程序版本。视频由仓库原文件直接提供；管理员替换的文件进入 ECS 的永久媒体目录。
+
+`update-company-materials.sh` 自动识别 `dnf`、`apt-get` 或 `yum`，安装 LibreOffice Impress、Python3、字体工具和可用中文字体。它保留现有 nginx 的证书路径、其他服务与根 `location /`，新上传接口单独允许 **250 MiB**、关闭请求缓存以流式写入 ECS，普通图片上传继续为 50 MiB。若您的 nginx 使用自定义路径、符号链接或复杂嵌套 location，脚本会停止并说明原因，请先核对现有配置。
+
+## 3. 上传原 PPT 或日常替换
+
+打开 `https://shuanglu-battery.cn/?admin=1`，使用原管理员密码登录。进入「公司介绍资料」选项卡，在「双鹿电池介绍PPT」卡片点击「上传文件并发布」，选择原始 `2026双鹿电池介绍PPT.pptx`，等待上传、ECS 本机转换及保存完成。已有文件时，按钮显示「选择文件并替换发布」；视频卡片也有独立替换按钮。
+
+如果希望用 Workbench 导入：先用 Workbench 文件传输面板把原文件上传为 `/tmp/2026双鹿电池介绍PPT.pptx`，然后执行下面的命令。无需停止服务或输入管理员密码。
+
+```bash
+set -euo pipefail
+sudo install -d -m 750 -o pairdeer -g pairdeer /var/lib/pairdeer/imports
+sudo install -m 600 -o pairdeer -g pairdeer \
+  '/tmp/2026双鹿电池介绍PPT.pptx' \
+  '/var/lib/pairdeer/imports/2026双鹿电池介绍PPT.pptx'
+sudo -u pairdeer env DATA_DIR=/var/lib/pairdeer PATH=/usr/local/bin:/usr/bin:/bin \
+  node /opt/pairdeer/current/scripts/import-company-material.mjs \
+  ppt '/var/lib/pairdeer/imports/2026双鹿电池介绍PPT.pptx'
+```
+
+输出 `"ok": true` 才表示原 PPT 和生成的 PDF 已保存、栏目引用已写入资料库。CLI 与后台都先完成上传和转换，再使用 SQLite 版本检查更新栏目，保留现有产品、轮播和文字；失败不会替换当前栏目。
+
+## 4. 将当前原文件和预览同步到自己的 GitHub 仓库
+
+继续在**第 2 步的同一个终端**执行以下内容。导出脚本将当前已发布的 PPTX、PDF 预览、MP4 与栏目默认信息复制到刚才的 Git 源码目录；不会导出管理员密码、SQLite 或其他私人配置。GitHub 普通 Git 文件最大 100 MiB；超过该大小时本段会停止，需要改用您自己的 Git LFS 或先优化文件，不能把 Git LFS 指针文件当作真正 PPT 导入。
+
+```bash
+set -euo pipefail
+cd "$PAIRDEER_SOURCE_DIR"
+sudo env DATA_DIR=/var/lib/pairdeer PATH=/usr/local/bin:/usr/bin:/bin \
+  node /opt/pairdeer/current/scripts/export-company-materials.mjs "$PAIRDEER_SOURCE_DIR"
+sudo chown -R "$(id -u):$(id -g)" \
+  public/assets/company lib/company-materials-defaults.json
+test -s public/assets/company/company-introduction.pptx
+for PAIRDEER_ASSET in public/assets/company/company-introduction.pptx \
+  public/assets/company/company-introduction-preview.pdf \
+  public/assets/company/company-introduction.mp4; do
+  if [ "$(stat -c '%s' "$PAIRDEER_ASSET")" -gt 104857600 ]; then
+    echo "超过 GitHub 普通文件 100 MiB 限制：$PAIRDEER_ASSET。ECS 已有文件；仓库同步尚未完成。"
+    exit 1
+  fi
+done
+git add public/assets/company/company-introduction.pptx \
+  public/assets/company/company-introduction-preview.pdf \
+  public/assets/company/company-introduction.mp4 lib/company-materials-defaults.json
+if ! git diff --cached --quiet; then
+  git -c user.name='PAIRDEER ECS Asset Sync' \
+      -c user.email='pairdeer-ecs@localhost' \
+      commit -m 'Sync published company presentation and video from ECS'
+  git push origin HEAD:main
+else
+  echo '仓库已包含相同公司素材，无需新提交。'
+fi
+```
+
+如 GitHub 要求验证，在 Workbench 私下输入您的 GitHub 用户名和具备本仓库写入权限的凭据。GitHub HTTPS 推送通常需要 Personal Access Token，不能使用网站管理员密码。不要将 Token 发到聊天中、写入仓库或拼到远程 URL。已有 GitHub 凭据配置时，正常沿用它。推送提示版本已更新时，先 `git pull --rebase origin main`，核对后再 `git push origin HEAD:main`；不要强制推送。
+
+只有 `git push` 成功且仓库可以看到原文件和预览，才表示已同步 GitHub；ECS 上的成功导入不能代替这一步。后台日后的替换保存在 ECS，不持有 GitHub Token 或自动推送；需要归档新版本时，再执行导出和提交步骤。新终端请先将 `PAIRDEER_SOURCE_DIR` 设置为第 2 步输出的实际源码目录。
+
+## 5. 浏览器验收
+
+打开 `https://shuanglu-battery.cn/`，刷新后检查新增的两个导航栏目。PPT 应能浏览 PDF 预览并下载原 `.pptx`；视频应可播放、拖动进度并下载 `.mp4`。手机浏览器未内嵌 PDF 阅读器时，使用栏目提供的「打开预览」按钮查看。
+
+单文件最多 250 MiB，PPT 预览转换超过两分钟会返回错误并保留原栏目；可在 ECS 优化过大的 PPT 后重试。上传替换会使用新的文件地址，避免浏览器继续读取旧缓存。
+
+用另一个未登录的浏览器检查更新，再执行一次 `sudo systemctl restart pairdeer`，确认更新仍存在。无需改 DNS、重新配置管理员密码或保持聊天会话在线。
+
+## 6. 日志、备份和回滚
+
+```bash
+sudo journalctl -u pairdeer -n 100 --no-pager
+sudo nginx -t
+sudo bash /opt/pairdeer/current/deploy/backup.sh
+```
+
+原始文件、PDF 和栏目资料均在 `/var/lib/pairdeer`，会随现有备份脚本保存。管理员密码仍只在 `/etc/pairdeer/pairdeer.env`，请单独私下备份。
+
+程序需要退回上一版本时：
+
+```bash
+sudo bash /opt/pairdeer/current/deploy/rollback.sh
+```
+
+这只回滚程序，不删除资料。nginx 更新前的原文件保存在脚本输出的 `/var/backups/pairdeer-company-materials/时间-进程号/pairdeer.conf`；需恢复时请从该次实际备份恢复，然后 `sudo nginx -t && sudo systemctl reload nginx`。不要用旧数据库覆盖新资料。

@@ -33,6 +33,7 @@ mkdir -p "$staging/public" "$staging/deploy" "$staging/docs"
 cp -a public/. "$staging/public/"
 cp -a deploy/. "$staging/deploy/"
 cp docs/github-pages-domain.md "$staging/docs/"
+cp docs/COMPANY_MATERIALS_ECS.md "$staging/docs/"
 [[ -f $staging/public/favicon.svg && ! -e $staging/public/public ]] || {
   echo 'Invalid release public/ layout.' >&2
   exit 1
@@ -41,6 +42,11 @@ cp ALIYUN_DEPLOY.md README.md .env.example "$staging/"
 # Keep migration tooling available without installing the development tree.
 mkdir -p "$staging/scripts" "$staging/lib"
 cp scripts/migrate-sites.mjs "$staging/scripts/"
+cp scripts/import-company-material.mjs "$staging/scripts/"
+cp scripts/export-company-materials.mjs "$staging/scripts/"
+for company_file in lib/runtime.ts lib/company-materials.ts lib/company-material-storage.mjs lib/company-materials-defaults.json; do
+  cp "$company_file" "$staging/lib/"
+done
 if [[ -f scripts/import-data.mjs ]]; then cp scripts/import-data.mjs "$staging/scripts/"; fi
 for data_file in lib/seed.json lib/download-map.json; do
   if [[ -f $data_file ]]; then cp "$data_file" "$staging/lib/"; fi

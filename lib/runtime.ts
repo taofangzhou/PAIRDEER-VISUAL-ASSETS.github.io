@@ -110,14 +110,15 @@ export class RangeNotSatisfiableError extends Error {
 }
 
 function mediaPath(key: string) {
-  if (!/^[a-z0-9-]+\.(png|jpg|webp|gif|mp4|webm)$/.test(key)) throw new Error('素材文件名无效');
+  if (!/^[a-z0-9-]+\.(png|jpg|webp|gif|mp4|webm|pptx|pdf)$/.test(key)) throw new Error('素材文件名无效');
   return join(dataDirectory(), 'media', key);
 }
 
 function contentType(key: string) {
   const types: Record<string, string> = {
     png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif',
-    mp4: 'video/mp4', webm: 'video/webm',
+    mp4: 'video/mp4', webm: 'video/webm', pdf: 'application/pdf',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
   };
   return types[key.split('.').at(-1)!];
 }

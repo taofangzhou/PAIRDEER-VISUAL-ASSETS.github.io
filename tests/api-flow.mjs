@@ -41,11 +41,13 @@ try {
  const favorites=await route('app/api/favorites/route.ts');
  const upload=await route('app/api/upload/route.ts');
  const media=await route('app/api/media/[key]/route.ts');
+ const company=await route('app/api/company-materials/[kind]/route.ts');
  const zip=await route('app/api/product-zip/[id]/route.ts');
  const health=await route('app/api/health/route.ts');
  assert.equal((await health.GET()).status,200);
  let snapshot=await (await catalog.GET()).json();
  assert.equal(snapshot.data.products.length,59);
+ assert.equal(snapshot.data.companyMaterials.video.url,'/assets/company/company-introduction.mp4');
  const put=(data,revision,cookies,extra={})=>catalog.PUT(request('/api/catalog','PUT',{data,revision},{...(cookies?{cookie:cookies}:{}),...extra}));
  assert.equal((await put(snapshot.data,snapshot.revision)).status,403);
  assert.equal((await put(snapshot.data,snapshot.revision,null,{'oai-authenticated-user-id':'owner','oai-authenticated-user-email':'owner@test.invalid'})).status,403);
@@ -84,16 +86,72 @@ try {
  assert.equal(partial.status,206);assert.equal(Buffer.compare(Buffer.from(await partial.arrayBuffer()),bytes.subarray(1,6)),0);
  const invalid=await getMedia({range:'bytes=999999-'});
  assert.equal(invalid.status,416);assert.equal(invalid.headers.get('content-range'),'bytes */'+bytes.length);
+
+ // Real raw streaming company uploads, filesystem storage and catalog validation.
+ const companyRequest=(kind,bytes,name,headers={})=>new Request('https://test.invalid/api/company-materials/'+kind,{
+  method:'POST',body:bytes,headers:{cookie:adminCookie,'content-type':kind==='ppt'?'application/vnd.openxmlformats-officedocument.presentationml.presentation':'video/mp4','x-file-name':encodeURIComponent(name),...headers},duplex:'half',
+ });
+ const companyPost=(kind,req)=>company.POST(req,{params:Promise.resolve({kind})});
+ assert.equal((await companyPost('video',new Request('https://test.invalid/api/company-materials/video',{method:'POST'}))).status,403);
+ const videoBytes=Buffer.from('000000186674797069736F6D0000020069736F6D6D703432','hex');
+ assert.equal((await companyPost('video',companyRequest('video',videoBytes,'公司.mp4',{origin:'https://evil.invalid'}))).status,403);
+ assert.equal((await companyPost('video',companyRequest('video',videoBytes,'公司.exe'))).status,400);
+ assert.equal((await companyPost('video',companyRequest('video',videoBytes,'公司.mp4',{'content-type':'text/html'}))).status,400);
+ assert.equal((await companyPost('video',companyRequest('video',Buffer.from('<html>fake video</html>'),'公司.mp4'))).status,400);
+ assert.equal((await companyPost('video',companyRequest('video',videoBytes,'公司.mp4',{'content-length':String(251*1024*1024)}))).status,413);
+ const originalRevision=snapshot.revision;
+ const companyVideo=await companyPost('video',companyRequest('video',videoBytes,'公司介绍视频.mp4'));
+ assert.equal(companyVideo.status,200,await companyVideo.clone().text());
+ const videoMaterial=(await companyVideo.json()).material;
+ assert.match(videoMaterial.url,/^\/api\/media\/[a-z0-9-]+\.mp4$/);
+ const streamedVideo=await media.GET(request(videoMaterial.url+'?download=1'),{params:Promise.resolve({key:videoMaterial.url.split('/').at(-1)})});
+ assert.equal(streamedVideo.headers.get('content-length'),String(videoBytes.length));
+ assert.deepEqual(Buffer.from(await streamedVideo.arrayBuffer()),videoBytes);
+ assert.equal((await (await catalog.GET()).json()).revision,originalRevision,'upload waits for explicit catalog publication');
+ const converter=path.join(directory,'test-office.mjs');
+ fs.writeFileSync(converter,`#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+const dir=process.argv[process.argv.indexOf('--outdir')+1];
+if(process.env.HOME!==dir||!process.env.XDG_CACHE_HOME.startsWith(dir))process.exit(4);
+fs.writeFileSync(path.join(dir,'source.pdf'),'%PDF-1.4\\npreview fixture\\n%%EOF');
+`,{mode:0o700});
+ process.env.LIBREOFFICE_BIN=converter;
+ const pptBytes=Buffer.from('504B0304'+'00'.repeat(32),'hex');
+ const companyPpt=await companyPost('ppt',companyRequest('ppt',pptBytes,'双鹿电池介绍.pptx'));
+ assert.equal(companyPpt.status,200,await companyPpt.clone().text());
+ const pptMaterial=(await companyPpt.json()).material;
+ assert.match(pptMaterial.previewUrl,/\.pdf$/);
+ const preview=await media.GET(request(pptMaterial.previewUrl),{params:Promise.resolve({key:pptMaterial.previewUrl.split('/').at(-1)})});
+ assert.equal(preview.headers.get('content-type'),'application/pdf');
+ assert.match(await preview.text(),/^%PDF-/);
+ const pptDownload=await media.GET(request(pptMaterial.url+'?download'),{params:Promise.resolve({key:pptMaterial.url.split('/').at(-1)})});
+ assert.equal(pptDownload.headers.get('content-type'),'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+ assert.match(pptDownload.headers.get('content-disposition'),/attachment/);
+ assert.deepEqual(Buffer.from(await pptDownload.arrayBuffer()),pptBytes);
+ assert.equal(fs.readdirSync(directory).filter(name=>name.startsWith('.company-upload-')).length,0,'staging is cleaned after success');
+ const invalidCompany=structuredClone(snapshot.data);
+ invalidCompany.companyMaterials={ppt:{...pptMaterial,url:'https://external.invalid/deck.pptx'}};
+ assert.equal((await put(invalidCompany,snapshot.revision,adminCookie)).status,400,'external company assets rejected');
+ invalidCompany.companyMaterials={ppt:{...pptMaterial,previewUrl:undefined}};
+ assert.equal((await put(invalidCompany,snapshot.revision,adminCookie)).status,400,'PPT must have a matching local PDF preview');
+ process.env.LIBREOFFICE_BIN=path.join(directory,'missing-libreoffice');
+ assert.equal((await companyPost('ppt',companyRequest('ppt',pptBytes,'失败.pptx'))).status,503);
+ assert.equal((await (await catalog.GET()).json()).revision,originalRevision,'failed conversion does not publish a replacement');
+ assert.equal(fs.readdirSync(directory).filter(name=>name.startsWith('.company-upload-')).length,0,'staging is cleaned after failure');
+ delete process.env.LIBREOFFICE_BIN;
+ snapshot.data.companyMaterials={ppt:pptMaterial,video:videoMaterial};
  snapshot.data.products[0].name='跨设备更新测试';snapshot.data.products[0].mainImages=[url];snapshot.data.products[0].detailImages=[];snapshot.data.banners=[];
  assert.equal((await put(snapshot.data,snapshot.revision,adminCookie)).status,200);
  assert.equal((await put(snapshot.data,snapshot.revision,adminCookie)).status,409);
  const zipped=await zip.GET(request('/api/product-zip/p1'),{params:Promise.resolve({id:'p1'})});
  assert.equal(zipped.status,200);const zipBytes=Buffer.from(await zipped.arrayBuffer());assert.equal(zipBytes.readUInt32LE(0),0x04034b50);assert.equal(zipBytes.includes(bytes),true);
  const publicRead=await (await catalog.GET()).json();
+ assert.equal(publicRead.data.companyMaterials.ppt.url,pptMaterial.url);assert.equal(publicRead.data.companyMaterials.video.url,videoMaterial.url);
  assert.equal(publicRead.data.products[0].name,'跨设备更新测试');assert.equal(publicRead.data.products[0].mainImages[0],url);
  const logout=await login.DELETE(request('/api/admin-access','DELETE',undefined,{cookie:adminCookie}));assert.match(logout.headers.get('set-cookie'),/Max-Age=0/);
  assert.equal((await put(snapshot.data,snapshot.revision,cookie(logout))).status,403);
- console.log('PASS: disk SQLite catalog; password login/logout/session; spoofed identity and cross-origin writes rejected; durable rate limiting; independent signed browser favorites; media upload/download/range/416; ZIP bytes; revision conflict.');
+ console.log('PASS: disk SQLite catalog; password login/logout/session; spoofed identity and cross-origin writes rejected; durable rate limiting; independent signed browser favorites; media upload/download/range/416; ZIP bytes; company PPTX/MP4 streaming, local preview, failure cleanup and publication validation; revision conflict.');
 } finally {
  fs.rmSync(directory,{recursive:true,force:true});
 }
