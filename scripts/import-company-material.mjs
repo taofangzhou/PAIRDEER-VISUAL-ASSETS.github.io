@@ -7,10 +7,11 @@ import { Readable } from 'node:stream';
 import { companyUploadName, storeCompanyMaterial } from '../lib/company-material-storage.mjs';
 import { dataDirectory, getDatabase } from '../lib/runtime.ts';
 import seed from '../lib/seed.json' with { type: 'json' };
+import { resolveCompanyMaterials } from '../lib/company-materials.ts';
 
 const [kind, input, requestedName] = process.argv.slice(2);
-if ((kind !== 'ppt' && kind !== 'video') || !input) {
-  console.error('Usage: DATA_DIR=/var/lib/pairdeer node scripts/import-company-material.mjs ppt|video /path/to/file [display-name.pptx|.mp4]');
+if ((kind !== 'pdf' && kind !== 'video') || !input) {
+  console.error('Usage: DATA_DIR=/var/lib/pairdeer node scripts/import-company-material.mjs pdf|video /path/to/file [display-name.pdf|.mp4]');
   process.exitCode = 1;
 } else {
   try {
@@ -27,7 +28,7 @@ if ((kind !== 'ppt' && kind !== 'video') || !input) {
       const row = await database.prepare('SELECT data,revision FROM catalog WHERE id=1').first();
       if (!row) throw new Error('资料库读取失败');
       const data = JSON.parse(row.data);
-      data.companyMaterials = { ...data.companyMaterials, [kind]: material };
+      data.companyMaterials = { ...resolveCompanyMaterials(data.companyMaterials), [kind]: material };
       const result = await database.prepare('UPDATE catalog SET data=?,revision=revision+1 WHERE id=1 AND revision=?')
         .bind(JSON.stringify(data), row.revision).run();
       if (result.meta.changes) { published = true; break; }

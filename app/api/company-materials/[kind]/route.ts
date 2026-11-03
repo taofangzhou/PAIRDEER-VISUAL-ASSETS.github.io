@@ -9,7 +9,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ kind: s
   try { await authorize(req); } catch (error) { return fail(error, 403); }
   try {
     const { kind } = await params;
-    if (kind !== 'ppt' && kind !== 'video') return fail(new Error('介绍栏目不存在'), 404);
+    if (kind !== 'pdf' && kind !== 'video') return fail(new Error('介绍栏目不存在'), 404);
     const name = companyUploadName(req.headers.get('x-file-name'), kind);
     validateCompanyUploadType(req.headers.get('content-type'), kind);
     if (!req.body) throw new CompanyMaterialError('请选择文件');

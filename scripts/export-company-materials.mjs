@@ -11,8 +11,7 @@ import { resolveCompanyMaterials, validateCompanyMaterials } from '../lib/compan
 
 const GITHUB_FILE_LIMIT = 100 * 1024 * 1024;
 const paths = {
-  ppt: '/assets/company/company-introduction.pptx',
-  preview: '/assets/company/company-introduction-preview.pdf',
+  pdf: '/assets/company/company-introduction.pdf',
   video: '/assets/company/company-introduction.mp4',
 };
 
@@ -75,16 +74,14 @@ async function exportMaterials(checkoutArgument) {
   const manifest = {};
   const staged = [];
   try {
-    for (const kind of ['ppt', 'video']) {
+    for (const kind of ['pdf', 'video']) {
       const material = materials[kind];
       if (!material) continue;
       manifest[kind] = { ...material, url: paths[kind] };
-      if (kind === 'ppt') manifest[kind].previewUrl = paths.preview;
       const entries = [{ url: material.url, destination: paths[kind], expectedSize: material.size }];
-      if (kind === 'ppt') entries.push({ url: material.previewUrl, destination: paths.preview });
       for (const entry of entries) {
         let source;
-        if (/^\/api\/media\/[a-z0-9-]+\.(pptx|pdf|mp4)$/.test(entry.url)) {
+        if (/^\/api\/media\/[a-z0-9-]+\.(pdf|mp4)$/.test(entry.url)) {
           await checkedDirectory(join(data, 'media'));
           source = join(data, 'media', basename(entry.url));
         } else if (Object.values(paths).includes(entry.url)) {

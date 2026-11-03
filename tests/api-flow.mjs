@@ -48,6 +48,7 @@ try {
  let snapshot=await (await catalog.GET()).json();
  assert.equal(snapshot.data.products.length,59);
  assert.equal(snapshot.data.companyMaterials.video.url,'/assets/company/company-introduction.mp4');
+ assert.equal(snapshot.data.companyMaterials.pdf.url,'/assets/company/company-introduction.pdf');
  const put=(data,revision,cookies,extra={})=>catalog.PUT(request('/api/catalog','PUT',{data,revision},{...(cookies?{cookie:cookies}:{}),...extra}));
  assert.equal((await put(snapshot.data,snapshot.revision)).status,403);
  assert.equal((await put(snapshot.data,snapshot.revision,null,{'oai-authenticated-user-id':'owner','oai-authenticated-user-email':'owner@test.invalid'})).status,403);
@@ -89,7 +90,7 @@ try {
 
  // Real raw streaming company uploads, filesystem storage and catalog validation.
  const companyRequest=(kind,bytes,name,headers={})=>new Request('https://test.invalid/api/company-materials/'+kind,{
-  method:'POST',body:bytes,headers:{cookie:adminCookie,'content-type':kind==='ppt'?'application/vnd.openxmlformats-officedocument.presentationml.presentation':'video/mp4','x-file-name':encodeURIComponent(name),...headers},duplex:'half',
+  method:'POST',body:bytes,headers:{cookie:adminCookie,'content-type':kind==='pdf'?'application/pdf':'video/mp4','x-file-name':encodeURIComponent(name),...headers},duplex:'half',
  });
  const companyPost=(kind,req)=>company.POST(req,{params:Promise.resolve({kind})});
  assert.equal((await companyPost('video',new Request('https://test.invalid/api/company-materials/video',{method:'POST'}))).status,403);
@@ -108,50 +109,60 @@ try {
  assert.equal(streamedVideo.headers.get('content-length'),String(videoBytes.length));
  assert.deepEqual(Buffer.from(await streamedVideo.arrayBuffer()),videoBytes);
  assert.equal((await (await catalog.GET()).json()).revision,originalRevision,'upload waits for explicit catalog publication');
- const converter=path.join(directory,'test-office.mjs');
- fs.writeFileSync(converter,`#!/usr/bin/env node
-import fs from 'node:fs';
-import path from 'node:path';
-const dir=process.argv[process.argv.indexOf('--outdir')+1];
-if(process.env.HOME!==dir||!process.env.XDG_CACHE_HOME.startsWith(dir))process.exit(4);
-fs.writeFileSync(path.join(dir,'source.pdf'),'%PDF-1.4\\npreview fixture\\n%%EOF');
-`,{mode:0o700});
- process.env.LIBREOFFICE_BIN=converter;
- const pptBytes=Buffer.from('504B0304'+'00'.repeat(32),'hex');
- const companyPpt=await companyPost('ppt',companyRequest('ppt',pptBytes,'双鹿电池介绍.pptx'));
- assert.equal(companyPpt.status,200,await companyPpt.clone().text());
- const pptMaterial=(await companyPpt.json()).material;
- assert.match(pptMaterial.previewUrl,/\.pdf$/);
- const preview=await media.GET(request(pptMaterial.previewUrl),{params:Promise.resolve({key:pptMaterial.previewUrl.split('/').at(-1)})});
- assert.equal(preview.headers.get('content-type'),'application/pdf');
- assert.match(await preview.text(),/^%PDF-/);
- const pptDownload=await media.GET(request(pptMaterial.url+'?download'),{params:Promise.resolve({key:pptMaterial.url.split('/').at(-1)})});
- assert.equal(pptDownload.headers.get('content-type'),'application/vnd.openxmlformats-officedocument.presentationml.presentation');
- assert.match(pptDownload.headers.get('content-disposition'),/attachment/);
- assert.deepEqual(Buffer.from(await pptDownload.arrayBuffer()),pptBytes);
- assert.equal(fs.readdirSync(directory).filter(name=>name.startsWith('.company-upload-')).length,0,'staging is cleaned after success');
+ const pdfBytes=Buffer.from('%PDF-1.7\noriginal PDF bytes preserved exactly\n%%EOF');
+ assert.equal((await companyPost('ppt',companyRequest('pdf',pdfBytes,'旧版.pptx'))).status,404,'PPTX upload is retired');
+ assert.equal((await companyPost('pdf',companyRequest('pdf',pdfBytes,'公司.pptx'))).status,400);
+ assert.equal((await companyPost('pdf',companyRequest('pdf',pdfBytes,'公司.pdf',{'content-type':'application/zip'}))).status,400);
+ assert.equal((await companyPost('pdf',companyRequest('pdf',Buffer.from('not a PDF'),'公司.pdf'))).status,400);
+ assert.equal((await companyPost('pdf',companyRequest('pdf',pdfBytes,'公司.pdf',{'content-length':String(pdfBytes.length+1)}))).status,400,'incomplete raw uploads rejected');
+ const companyPdf=await companyPost('pdf',companyRequest('pdf',pdfBytes,'双鹿电池介绍.pdf'));
+ assert.equal(companyPdf.status,200,await companyPdf.clone().text());
+ const pdfMaterial=(await companyPdf.json()).material;
+ assert.match(pdfMaterial.url,/^\/api\/media\/[a-z0-9-]+\.pdf$/);
+ assert.equal(pdfMaterial.previewUrl,undefined,'the original PDF is the preview');
+ const pdfDownload=await media.GET(request(pdfMaterial.url+'?download'),{params:Promise.resolve({key:pdfMaterial.url.split('/').at(-1)})});
+ assert.equal(pdfDownload.headers.get('content-type'),'application/pdf');
+ assert.match(pdfDownload.headers.get('content-disposition'),/attachment/);
+ assert.equal(pdfDownload.headers.get('content-length'),String(pdfBytes.length));
+ assert.deepEqual(Buffer.from(await pdfDownload.arrayBuffer()),pdfBytes);
+ const pdfPreview=await media.GET(request(pdfMaterial.url),{params:Promise.resolve({key:pdfMaterial.url.split('/').at(-1)})});
+ assert.equal(pdfPreview.headers.get('content-disposition'),null);
+ assert.deepEqual(Buffer.from(await pdfPreview.arrayBuffer()),pdfBytes);
+ assert.equal(fs.readdirSync(directory).filter(name=>name.startsWith('.company-upload-')).length,0,'staging is cleaned after success and failure');
  const invalidCompany=structuredClone(snapshot.data);
- invalidCompany.companyMaterials={ppt:{...pptMaterial,url:'https://external.invalid/deck.pptx'}};
+ invalidCompany.companyMaterials={pdf:{...pdfMaterial,url:'https://external.invalid/deck.pdf'}};
  assert.equal((await put(invalidCompany,snapshot.revision,adminCookie)).status,400,'external company assets rejected');
- invalidCompany.companyMaterials={ppt:{...pptMaterial,previewUrl:undefined}};
- assert.equal((await put(invalidCompany,snapshot.revision,adminCookie)).status,400,'PPT must have a matching local PDF preview');
- process.env.LIBREOFFICE_BIN=path.join(directory,'missing-libreoffice');
- assert.equal((await companyPost('ppt',companyRequest('ppt',pptBytes,'失败.pptx'))).status,503);
- assert.equal((await (await catalog.GET()).json()).revision,originalRevision,'failed conversion does not publish a replacement');
- assert.equal(fs.readdirSync(directory).filter(name=>name.startsWith('.company-upload-')).length,0,'staging is cleaned after failure');
- delete process.env.LIBREOFFICE_BIN;
- snapshot.data.companyMaterials={ppt:pptMaterial,video:videoMaterial};
+ invalidCompany.companyMaterials={pdf:{...pdfMaterial,url:'/assets/company/other.pdf'}};
+ assert.equal((await put(invalidCompany,snapshot.revision,adminCookie)).status,400,'only known bundled company paths are accepted');
+ invalidCompany.companyMaterials={pdf:{...pdfMaterial,previewUrl:'/api/media/another.pdf'}};
+ assert.equal((await put(invalidCompany,snapshot.revision,adminCookie)).status,400,'a separate converted preview is not accepted');
+ assert.equal((await (await catalog.GET()).json()).revision,originalRevision,'uploads and failed validation do not publish replacements');
+ // A real existing database with legacy PPTX metadata still reads and saves correctly.
+ const {DatabaseSync}=await import('node:sqlite');
+ const legacyData=structuredClone(snapshot.data);
+ legacyData.companyMaterials={ppt:{url:'/api/media/legacy.pptx',previewUrl:'/api/media/legacy-preview.pdf'},video:videoMaterial};
+ const legacyDatabase=new DatabaseSync(path.join(directory,'catalog.sqlite'));
+ legacyDatabase.prepare('UPDATE catalog SET data=? WHERE id=1').run(JSON.stringify(legacyData));
+ legacyDatabase.close();
+ const legacyRead=await (await catalog.GET()).json();
+ assert.equal(legacyRead.data.companyMaterials.pdf.url,'/assets/company/company-introduction.pdf');
+ assert.equal(legacyRead.data.companyMaterials.video.url,videoMaterial.url);
+ assert.equal(legacyRead.data.companyMaterials.ppt,undefined);
+ assert.equal((await put(legacyData,snapshot.revision,adminCookie)).status,200,'saving legacy metadata does not block existing administrators');
+ snapshot=await (await catalog.GET()).json();
+ assert.equal(snapshot.data.companyMaterials.ppt,undefined);
+ snapshot.data.companyMaterials={pdf:pdfMaterial,video:videoMaterial};
  snapshot.data.products[0].name='跨设备更新测试';snapshot.data.products[0].mainImages=[url];snapshot.data.products[0].detailImages=[];snapshot.data.banners=[];
  assert.equal((await put(snapshot.data,snapshot.revision,adminCookie)).status,200);
  assert.equal((await put(snapshot.data,snapshot.revision,adminCookie)).status,409);
  const zipped=await zip.GET(request('/api/product-zip/p1'),{params:Promise.resolve({id:'p1'})});
  assert.equal(zipped.status,200);const zipBytes=Buffer.from(await zipped.arrayBuffer());assert.equal(zipBytes.readUInt32LE(0),0x04034b50);assert.equal(zipBytes.includes(bytes),true);
  const publicRead=await (await catalog.GET()).json();
- assert.equal(publicRead.data.companyMaterials.ppt.url,pptMaterial.url);assert.equal(publicRead.data.companyMaterials.video.url,videoMaterial.url);
+ assert.equal(publicRead.data.companyMaterials.pdf.url,pdfMaterial.url);assert.equal(publicRead.data.companyMaterials.video.url,videoMaterial.url);
  assert.equal(publicRead.data.products[0].name,'跨设备更新测试');assert.equal(publicRead.data.products[0].mainImages[0],url);
  const logout=await login.DELETE(request('/api/admin-access','DELETE',undefined,{cookie:adminCookie}));assert.match(logout.headers.get('set-cookie'),/Max-Age=0/);
  assert.equal((await put(snapshot.data,snapshot.revision,cookie(logout))).status,403);
- console.log('PASS: disk SQLite catalog; password login/logout/session; spoofed identity and cross-origin writes rejected; durable rate limiting; independent signed browser favorites; media upload/download/range/416; ZIP bytes; company PPTX/MP4 streaming, local preview, failure cleanup and publication validation; revision conflict.');
+ console.log('PASS: disk SQLite catalog; password login/logout/session; spoofed identity and cross-origin writes rejected; durable rate limiting; independent signed browser favorites; media upload/download/range/416; ZIP bytes; company PDF/MP4 streaming, exact original bytes, legacy metadata compatibility and publication validation; revision conflict.');
 } finally {
  fs.rmSync(directory,{recursive:true,force:true});
 }
