@@ -16,9 +16,11 @@ async function openImage(original: string): Promise<ReadableStream<Uint8Array>> 
   if (!object) throw new Error('图片不存在');
   return object.body;
  }
- if (original.startsWith('/assets/')) {
+ const bundledRoot = original.startsWith('/assets/') ? 'assets' : original.startsWith('/downloads/') ? 'downloads' : null;
+ if (bundledRoot) {
   // Read bundled files locally. Never derive an internal fetch target from Host.
-  const base = await realpath(path.resolve('public/assets'));
+  // Keep each URL prefix inside its own directory, including after symlink resolution.
+  const base = await realpath(path.resolve('public', bundledRoot));
   const filename = await realpath(path.resolve('public', '.' + decodeURIComponent(original)));
   if (!filename.startsWith(base + path.sep) || !(await stat(filename)).isFile()) throw new Error('图片地址无效');
   return Readable.toWeb(createReadStream(filename)) as ReadableStream<Uint8Array>;

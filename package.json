@@ -16,8 +16,9 @@
     "db:generate": "drizzle-kit generate",
     "test:runtime": "node tests/ecs-runtime.test.mjs",
     "test:migration": "node --test tests/migrate-sites.test.mjs",
-    "test": "npm run test:auth && npm run test:runtime && npm run test:api && npm run test:migration",
-    "test:backup-export": "node --test tests/export-sites-backup.test.mjs"
+    "test": "npm run test:auth && npm run test:runtime && npm run test:api && npm run test:migration && npm run test:zip",
+    "test:backup-export": "node --test tests/export-sites-backup.test.mjs",
+    "test:zip": "node --experimental-vm-modules --test tests/product-zip.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
