@@ -90,7 +90,7 @@ sudo bash deploy/update-company-materials.sh
 
 PAIRDEER_ARCHIVE=$(find "$PAIRDEER_SOURCE_DIR/work/releases" -maxdepth 1 -type f -name 'pairdeer-*.tar.gz' -print -quit)
 test -n "$PAIRDEER_ARCHIVE"
-sudo env PATH=/usr/local/bin:/usr/bin:/bin bash deploy/install-release.sh "$PAIRDEER_ARCHIVE"
+sudo env PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin bash deploy/install-release.sh "$PAIRDEER_ARCHIVE"
 
 curl --fail http://127.0.0.1:3000/api/health
 printf '\n本次源码目录：%s\n' "$PAIRDEER_SOURCE_DIR"
@@ -112,7 +112,7 @@ sudo install -d -m 750 -o pairdeer -g pairdeer /var/lib/pairdeer/imports
 sudo install -m 600 -o pairdeer -g pairdeer \
   '/tmp/26双鹿电池介绍PPT.pdf' \
   '/var/lib/pairdeer/imports/26双鹿电池介绍PPT.pdf'
-sudo -u pairdeer env DATA_DIR=/var/lib/pairdeer PATH=/usr/local/bin:/usr/bin:/bin \
+sudo -u pairdeer env DATA_DIR=/var/lib/pairdeer PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
   node /opt/pairdeer/current/scripts/import-company-material.mjs \
   pdf '/var/lib/pairdeer/imports/26双鹿电池介绍PPT.pdf'
 ```
@@ -126,7 +126,7 @@ sudo -u pairdeer env DATA_DIR=/var/lib/pairdeer PATH=/usr/local/bin:/usr/bin:/bi
 ```bash
 set -euo pipefail
 cd "$PAIRDEER_SOURCE_DIR"
-sudo env DATA_DIR=/var/lib/pairdeer PATH=/usr/local/bin:/usr/bin:/bin \
+sudo env DATA_DIR=/var/lib/pairdeer PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
   node /opt/pairdeer/current/scripts/export-company-materials.mjs "$PAIRDEER_SOURCE_DIR"
 sudo chown -R "$(id -u):$(id -g)" \
   public/assets/company lib/company-materials-defaults.json

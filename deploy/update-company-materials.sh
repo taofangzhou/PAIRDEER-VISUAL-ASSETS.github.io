@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 if [[ $EUID -ne 0 || $# -gt 1 ]]; then
   echo 'Usage: sudo bash deploy/update-company-materials.sh [/etc/nginx/conf.d/pairdeer.conf]' >&2
   exit 1

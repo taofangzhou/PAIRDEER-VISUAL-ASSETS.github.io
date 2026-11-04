@@ -2,7 +2,7 @@
 # Downloadable recovery updater for the existing standard ECS installation.
 set -Eeuo pipefail
 [[ $EUID -eq 0 && $# -eq 0 ]] || { echo '请在 Workbench 执行：sudo bash /tmp/pairdeer-company-upgrade.sh' >&2; exit 1; }
-export PATH=/usr/local/bin:/usr/bin:/bin
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export NEXT_TELEMETRY_DISABLED=1
 umask 077
 install -d -m 700 /var/log/pairdeer /opt/pairdeer-builds
