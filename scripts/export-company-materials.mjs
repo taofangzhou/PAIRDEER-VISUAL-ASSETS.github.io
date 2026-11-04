@@ -4,7 +4,7 @@ import { constants } from 'node:fs';
 import { lstat, mkdir, open, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, parse, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import { DatabaseSync } from 'node:sqlite';
 import { resolveCompanyMaterials, validateCompanyMaterials } from '../lib/company-materials.ts';
@@ -74,28 +74,42 @@ async function exportMaterials(checkoutArgument) {
   const manifest = {};
   const staged = [];
   try {
+    const addSource = async (url, destination, expectedSize) => {
+      let source;
+      if (/^\/api\/media\/[a-z0-9-]+\.(pdf|mp4|jpg)$/.test(url)) {
+        await checkedDirectory(join(data, 'media'));
+        source = join(data, 'media', basename(url));
+      } else if (Object.values(paths).includes(url) ||
+        /^\/assets\/company\/pdf-preview\/[a-f0-9]{16,64}\/page-\d+\.jpg$/.test(url)) {
+        source = join(sourceRoot, 'public', url);
+        await checkedDirectory(dirname(source));
+      } else throw new Error('资料地址不是允许的 ECS 公司素材路径');
+      await checkedFile(source);
+      const handle = await open(source, constants.O_RDONLY | constants.O_NOFOLLOW);
+      const info = await handle.stat();
+      if (!info.isFile() || (expectedSize !== undefined && info.size !== expectedSize)) {
+        await handle.close();
+        throw new Error('素材大小与已发布资料不一致：' + source);
+      }
+      const entry = { handle, size: info.size, target: join(checkout, 'public', destination) };
+      sources.push(entry);
+      return entry;
+    };
     for (const kind of ['pdf', 'video']) {
       const material = materials[kind];
       if (!material) continue;
       manifest[kind] = { ...material, url: paths[kind] };
-      const entries = [{ url: material.url, destination: paths[kind], expectedSize: material.size }];
-      for (const entry of entries) {
-        let source;
-        if (/^\/api\/media\/[a-z0-9-]+\.(pdf|mp4)$/.test(entry.url)) {
-          await checkedDirectory(join(data, 'media'));
-          source = join(data, 'media', basename(entry.url));
-        } else if (Object.values(paths).includes(entry.url)) {
-          await checkedDirectory(join(sourceRoot, 'public', 'assets', 'company'));
-          source = join(sourceRoot, 'public', entry.url);
-        } else throw new Error('资料地址不是允许的 ECS 公司素材路径');
-        await checkedFile(source);
-        const handle = await open(source, constants.O_RDONLY | constants.O_NOFOLLOW);
-        const info = await handle.stat();
-        if (!info.isFile() || (entry.expectedSize !== undefined && info.size !== entry.expectedSize)) {
-          await handle.close();
-          throw new Error('素材大小与已发布资料不一致：' + source);
+      const original = await addSource(material.url, paths[kind], material.size);
+      if (kind === 'pdf' && material.previewPages?.length) {
+        const hash = createHash('sha256');
+        for await (const chunk of original.handle.createReadStream({ start: 0, autoClose: false })) hash.update(chunk);
+        const prefix = '/assets/company/pdf-preview/' + hash.digest('hex').slice(0, 16);
+        manifest.pdf.previewPages = [];
+        for (const [index, url] of material.previewPages.entries()) {
+          const destination = prefix + '/page-' + String(index + 1).padStart(2, '0') + '.jpg';
+          await addSource(url, destination);
+          manifest.pdf.previewPages.push(destination);
         }
-        sources.push({ handle, size: info.size, target: join(checkout, 'public', entry.destination) });
       }
     }
     if (!sources.length) throw new Error('没有可导出的已发布公司素材');
@@ -103,12 +117,15 @@ async function exportMaterials(checkoutArgument) {
     const companyDirectory = await checkedDirectory(join(checkout, 'public', 'assets', 'company'), true);
     const manifestTarget = join(checkout, 'lib', 'company-materials-defaults.json');
     await checkedFile(manifestTarget, true);
-    for (const source of sources) await checkedFile(source.target, true);
+    for (const source of sources) {
+      await checkedDirectory(dirname(source.target), true);
+      await checkedFile(source.target, true);
+    }
     for (const source of sources) {
       const temporary = join(companyDirectory, '.' + randomUUID() + '.tmp');
       staged.push(temporary);
       const destination = await open(temporary, 'wx', 0o644);
-      try { await pipeline(source.handle.createReadStream(), destination.createWriteStream()); }
+      try { await pipeline(source.handle.createReadStream({ start: 0 }), destination.createWriteStream()); }
       finally { await destination.close().catch(() => {}); }
       source.temporary = temporary;
     }

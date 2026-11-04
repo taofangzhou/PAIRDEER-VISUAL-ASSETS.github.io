@@ -44,6 +44,7 @@ mkdir -p "$staging/scripts" "$staging/lib"
 cp scripts/migrate-sites.mjs "$staging/scripts/"
 cp scripts/import-company-material.mjs "$staging/scripts/"
 cp scripts/export-company-materials.mjs "$staging/scripts/"
+cp scripts/prepare-company-preview.mjs "$staging/scripts/"
 for company_file in lib/runtime.ts lib/company-materials.ts lib/company-material-storage.mjs lib/company-materials-defaults.json; do
   cp "$company_file" "$staging/lib/"
 done

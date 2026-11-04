@@ -109,7 +109,7 @@ try {
  assert.equal(streamedVideo.headers.get('content-length'),String(videoBytes.length));
  assert.deepEqual(Buffer.from(await streamedVideo.arrayBuffer()),videoBytes);
  assert.equal((await (await catalog.GET()).json()).revision,originalRevision,'upload waits for explicit catalog publication');
- const pdfBytes=Buffer.from('%PDF-1.7\noriginal PDF bytes preserved exactly\n%%EOF');
+ const pdfBytes=fs.readFileSync('tests/fixtures/company-preview.pdf');
  assert.equal((await companyPost('ppt',companyRequest('pdf',pdfBytes,'旧版.pptx'))).status,404,'PPTX upload is retired');
  assert.equal((await companyPost('pdf',companyRequest('pdf',pdfBytes,'公司.pptx'))).status,400);
  assert.equal((await companyPost('pdf',companyRequest('pdf',pdfBytes,'公司.pdf',{'content-type':'application/zip'}))).status,400);
@@ -119,7 +119,11 @@ try {
  assert.equal(companyPdf.status,200,await companyPdf.clone().text());
  const pdfMaterial=(await companyPdf.json()).material;
  assert.match(pdfMaterial.url,/^\/api\/media\/[a-z0-9-]+\.pdf$/);
- assert.equal(pdfMaterial.previewUrl,undefined,'the original PDF is the preview');
+ assert.equal(pdfMaterial.previewUrl,undefined);
+ assert.equal(pdfMaterial.previewPages.length,1,'actual Poppler renders one JPEG page');
+ const pageResponse=await media.GET(request(pdfMaterial.previewPages[0]),{params:Promise.resolve({key:pdfMaterial.previewPages[0].split('/').at(-1)})});
+ assert.equal(pageResponse.headers.get('content-type'),'image/jpeg');
+ assert.deepEqual(Buffer.from(await pageResponse.arrayBuffer()).subarray(0,3),Buffer.from([255,216,255]));
  const pdfDownload=await media.GET(request(pdfMaterial.url+'?download'),{params:Promise.resolve({key:pdfMaterial.url.split('/').at(-1)})});
  assert.equal(pdfDownload.headers.get('content-type'),'application/pdf');
  assert.match(pdfDownload.headers.get('content-disposition'),/attachment/);
@@ -136,6 +140,18 @@ try {
  assert.equal((await put(invalidCompany,snapshot.revision,adminCookie)).status,400,'only known bundled company paths are accepted');
  invalidCompany.companyMaterials={pdf:{...pdfMaterial,previewUrl:'/api/media/another.pdf'}};
  assert.equal((await put(invalidCompany,snapshot.revision,adminCookie)).status,400,'a separate converted preview is not accepted');
+ invalidCompany.companyMaterials={pdf:{...pdfMaterial,previewPages:['https://external.invalid/page.jpg']}};
+ assert.equal((await put(invalidCompany,snapshot.revision,adminCookie)).status,400,'preview pages must remain on ECS');
+ invalidCompany.companyMaterials={pdf:{...pdfMaterial,previewPages:Array(201).fill(pdfMaterial.previewPages[0])}};
+ assert.equal((await put(invalidCompany,snapshot.revision,adminCookie)).status,400,'preview page count is bounded');
+ const beforeFailure=fs.readdirSync(path.join(directory,'media')).sort();
+ assert.equal((await companyPost('pdf',companyRequest('pdf',Buffer.from('%PDF-invalid content'),'broken.pdf'))).status,422);
+ process.env.PDFINFO_BIN=path.join(directory,'missing-pdfinfo');
+ const missingPoppler=await companyPost('pdf',companyRequest('pdf',pdfBytes,'valid.pdf'));
+ assert.equal(missingPoppler.status,503);
+ assert.match((await missingPoppler.json()).error,/poppler-utils/);
+ delete process.env.PDFINFO_BIN;
+ assert.deepEqual(fs.readdirSync(path.join(directory,'media')).sort(),beforeFailure,'failed conversion leaves no stored partial objects');
  assert.equal((await (await catalog.GET()).json()).revision,originalRevision,'uploads and failed validation do not publish replacements');
  // A real existing database with legacy PPTX metadata still reads and saves correctly.
  const {DatabaseSync}=await import('node:sqlite');
@@ -148,6 +164,7 @@ try {
  assert.equal(legacyRead.data.companyMaterials.pdf.url,'/assets/company/company-introduction.pdf');
  assert.equal(legacyRead.data.companyMaterials.video.url,videoMaterial.url);
  assert.equal(legacyRead.data.companyMaterials.ppt,undefined);
+ assert.equal(legacyRead.data.companyMaterials.pdf.previewPages.length,38,'bundled PDF uses bundled image previews');
  assert.equal((await put(legacyData,snapshot.revision,adminCookie)).status,200,'saving legacy metadata does not block existing administrators');
  snapshot=await (await catalog.GET()).json();
  assert.equal(snapshot.data.companyMaterials.ppt,undefined);
@@ -158,6 +175,7 @@ try {
  const zipped=await zip.GET(request('/api/product-zip/p1'),{params:Promise.resolve({id:'p1'})});
  assert.equal(zipped.status,200);const zipBytes=Buffer.from(await zipped.arrayBuffer());assert.equal(zipBytes.readUInt32LE(0),0x04034b50);assert.equal(zipBytes.includes(bytes),true);
  const publicRead=await (await catalog.GET()).json();
+ assert.deepEqual(publicRead.data.companyMaterials.pdf.previewPages,pdfMaterial.previewPages);
  assert.equal(publicRead.data.companyMaterials.pdf.url,pdfMaterial.url);assert.equal(publicRead.data.companyMaterials.video.url,videoMaterial.url);
  assert.equal(publicRead.data.products[0].name,'跨设备更新测试');assert.equal(publicRead.data.products[0].mainImages[0],url);
  const logout=await login.DELETE(request('/api/admin-access','DELETE',undefined,{cookie:adminCookie}));assert.match(logout.headers.get('set-cookie'),/Max-Age=0/);

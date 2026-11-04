@@ -7,10 +7,12 @@ export type CompanyMaterial = {
   name: string;
   size: number;
   updatedAt: string;
+  previewPages?: string[];
 };
 export type CompanyMaterials = Partial<Record<CompanyMaterialKind, CompanyMaterial>>;
 export const COMPANY_MATERIAL_MAX_BYTES = 250 * 1024 * 1024;
 export const COMPANY_PDF_TYPE = 'application/pdf';
+export const COMPANY_PDF_MAX_PAGES = 200;
 export const defaultCompanyMaterials: CompanyMaterials = materialDefaults;
 
 function materialUrl(value: unknown, kind: CompanyMaterialKind) {
@@ -18,6 +20,12 @@ function materialUrl(value: unknown, kind: CompanyMaterialKind) {
   const extension = kind === 'pdf' ? 'pdf' : 'mp4';
   return new RegExp('^/api/media/[a-z0-9-]+\\.' + extension + '$').test(value) ||
     value === '/assets/company/company-introduction.' + extension;
+}
+
+export function validCompanyPreviewPages(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length > 0 && value.length <= COMPANY_PDF_MAX_PAGES &&
+    value.every(url => typeof url === 'string' && (/^\/api\/media\/[a-z0-9-]+\.jpg$/.test(url) ||
+      /^\/assets\/company\/pdf-preview\/[a-f0-9]{16,64}\/page-\d{1,3}\.jpg$/.test(url)));
 }
 
 function validMaterial(value: unknown, kind: CompanyMaterialKind): value is CompanyMaterial {
@@ -28,7 +36,8 @@ function validMaterial(value: unknown, kind: CompanyMaterialKind): value is Comp
     asset.name.toLowerCase().endsWith(kind === 'pdf' ? '.pdf' : '.mp4') &&
     Number.isSafeInteger(asset.size) && asset.size > 0 && asset.size <= COMPANY_MATERIAL_MAX_BYTES &&
     typeof asset.updatedAt === 'string' && Number.isFinite(Date.parse(asset.updatedAt)) &&
-    asset.previewUrl === undefined;
+    asset.previewUrl === undefined && (asset.previewPages === undefined ||
+      (kind === 'pdf' && validCompanyPreviewPages(asset.previewPages)));
 }
 
 /** Ignore the former PPTX entry; keep valid PDF/video updates from existing ECS databases. */
@@ -40,6 +49,9 @@ export function resolveCompanyMaterials(value?: unknown): CompanyMaterials {
       const asset = saved[kind];
       if (validMaterial(asset, kind)) materials[kind] = {
         url: asset.url, name: asset.name, size: asset.size, updatedAt: asset.updatedAt,
+        ...(asset.previewPages ? { previewPages: [...asset.previewPages] } :
+          kind === 'pdf' && asset.url === defaultCompanyMaterials.pdf?.url && asset.size === defaultCompanyMaterials.pdf.size && defaultCompanyMaterials.pdf.previewPages
+            ? { previewPages: [...defaultCompanyMaterials.pdf.previewPages] } : {}),
       };
     }
   }

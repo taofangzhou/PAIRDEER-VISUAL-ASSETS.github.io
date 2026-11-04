@@ -14,21 +14,31 @@ config_file=${1:-/etc/nginx/conf.d/pairdeer.conf}
 id pairdeer >/dev/null 2>&1 || { echo '未找到现有 pairdeer 服务账号，请先按 ALIYUN_DEPLOY.md 完成首次部署。' >&2; exit 1; }
 nginx -t
 
-# PDF previews use the original file directly. Python is needed only to patch
-# nginx safely; no document conversion software is installed or required.
-if ! command -v python3 >/dev/null 2>&1; then
+# Generate lightweight PDF page previews on this ECS. Python patches nginx;
+# Poppler renders the PDF locally without an external preview service.
+packages=()
+if ! command -v python3 >/dev/null 2>&1; then packages+=(python3); fi
+if ! command -v pdfinfo >/dev/null 2>&1 || ! command -v pdftoppm >/dev/null 2>&1; then packages+=(poppler-utils); fi
+if ! command -v flock >/dev/null 2>&1; then packages+=(util-linux); fi
+if [[ ${#packages[@]} -gt 0 ]]; then
   if command -v dnf >/dev/null 2>&1; then
-    dnf install -y python3
+    dnf install -y "${packages[@]}"
   elif command -v apt-get >/dev/null 2>&1; then
     apt-get update
-    apt-get install -y python3
+    apt-get install -y "${packages[@]}"
   elif command -v yum >/dev/null 2>&1; then
-    yum install -y python3
+    yum install -y "${packages[@]}"
   else
-    echo '请先安装 Python3，再执行本脚本。nginx 未修改。' >&2
+    echo '请先安装 Python3、poppler-utils 和 util-linux，再执行本脚本。nginx 未修改。' >&2
     exit 1
   fi
 fi
+command -v python3 >/dev/null
+command -v pdfinfo >/dev/null
+command -v pdftoppm >/dev/null
+command -v flock >/dev/null
+pdfinfo -v
+pdftoppm -v
 
 backup_dir=/var/backups/pairdeer-company-materials/$(date -u +%Y%m%dT%H%M%SZ)-$$
 install -d -m 700 "$backup_dir"
@@ -51,5 +61,5 @@ if ! systemctl reload nginx; then
   nginx -t && systemctl reload nginx
   exit 1
 fi
-echo "公司资料 PDF/MP4 上传代理已就绪。nginx 原配置：$backup_dir/pairdeer.conf"
+echo "PDF 分页预览工具和 PDF/MP4 上传代理已就绪。nginx 原配置：$backup_dir/pairdeer.conf"
 echo '现有证书、其他域名和 /api/upload 的限制均保留。'

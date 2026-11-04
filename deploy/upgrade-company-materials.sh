@@ -48,7 +48,7 @@ if ! command -v git >/dev/null 2>&1; then
   else echo '请先安装 Git，再执行本脚本。'; false
   fi
 fi
-for executable in node npm git curl tar stat awk find tee du; do command -v "$executable" >/dev/null; done
+for executable in node npm git curl tar stat awk find tee du runuser; do command -v "$executable" >/dev/null; done
 node -e 'if(Number(process.versions.node.split(".")[0])<24)throw Error("服务运行路径需要 Node.js 24 或以上")'
 [[ -L /opt/pairdeer/current && -f /etc/pairdeer/pairdeer.env ]]
 [[ $(systemctl show pairdeer.service -p FragmentPath --value) == /etc/systemd/system/pairdeer.service && ! -L /etc/systemd/system/pairdeer.service ]]
@@ -68,10 +68,20 @@ available_kib=$(df -Pk /opt/pairdeer-builds | awk 'NR==2 {print $4}')
 echo "原程序：$old_release；进程：$old_pid"
 
 stage=获取并核验源码
-source_dir=$(mktemp -d /opt/pairdeer-builds/company.XXXXXXXX)
-git clone --depth 1 --filter=blob:none --sparse --branch main \
-  https://github.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io.git "$source_dir"
-git -C "$source_dir" sparse-checkout set --no-cone '/*' '!/backup/'
+source_ready=0
+for source_attempt in 1 2 3; do
+  source_dir=$(mktemp -d /opt/pairdeer-builds/company.XXXXXXXX)
+  echo "下载源码：第 $source_attempt 次尝试"
+  if git clone --depth 1 --filter=blob:none --sparse --branch main \
+       https://github.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io.git "$source_dir" &&
+     git -C "$source_dir" sparse-checkout set --no-cone '/*' '!/backup/'; then
+    source_ready=1
+    break
+  fi
+  echo "源码下载未完成，详情保留在日志中。目录：$source_dir"
+  if [[ $source_attempt -lt 3 ]]; then sleep 2; fi
+done
+[[ $source_ready == 1 ]] || { echo '三次源码下载均未完成，旧网站保持运行。'; false; }
 cd "$source_dir"
 echo "源码目录：$source_dir"
 git log -1 --format='源码提交：%H %s'
@@ -83,7 +93,11 @@ for(const label of ['双鹿电池介绍PDF','公司介绍视频']) assert(source
 for(const [name,size] of [['pdf',23338906],['mp4',29894161]]) {
   assert.equal(fs.statSync('public/assets/company/company-introduction.'+name).size,size,'原始素材不完整：'+name);
 }
-console.log('源码栏目与两份原始素材核验通过');
+const pages=JSON.parse(fs.readFileSync('lib/company-materials-defaults.json','utf8')).pdf.previewPages;
+assert.equal(pages?.length,38,'默认 PDF 应有 38 张分页预览');
+for(const page of pages) assert(fs.statSync('public'+page).size>0,'缺少分页预览：'+page);
+assert(fs.statSync('public'+pages[0]).size<300*1024,'首页预览图过大');
+console.log('源码栏目、原始素材与 38 张轻量分页预览核验通过');
 NODE
 
 stage=安装依赖与构建
@@ -106,10 +120,12 @@ node --input-type=commonjs <<'NODE'
 const fs=require('node:fs');
 const assert=require('node:assert/strict');
 const files=new Set(fs.readFileSync('work/release-files.txt','utf8').trim().split('\n'));
-for(const file of ['server.js','RELEASE_ID','public/assets/company/company-introduction.pdf','public/assets/company/company-introduction.mp4','lib/company-materials-defaults.json']) {
+for(const file of ['server.js','RELEASE_ID','public/assets/company/company-introduction.pdf','public/assets/company/company-introduction.mp4','lib/company-materials-defaults.json','scripts/prepare-company-preview.mjs']) {
   assert(files.has('./'+file),'发布包缺少：'+file);
 }
-console.log('发布包包含 PDF、MP4 与栏目默认资料');
+const pages=JSON.parse(fs.readFileSync('lib/company-materials-defaults.json','utf8')).pdf.previewPages;
+for(const page of pages) assert(files.has('./public'+page),'发布包缺少分页预览：'+page);
+console.log('发布包包含 PDF、MP4、38 张分页预览与预览维护工具');
 NODE
 expected_release_id=$(tar -xOf "$archive" ./RELEASE_ID)
 [[ -n $expected_release_id ]]
@@ -128,6 +144,10 @@ service_backup=$(mktemp /var/log/pairdeer/service-before-company-upgrade.XXXXXXX
 cp -p /etc/systemd/system/pairdeer.service "$service_backup"
 install_started=1
 bash deploy/install-release.sh "$archive"
+
+stage=准备当前PDF的快速预览
+runuser -u pairdeer -- env DATA_DIR=/var/lib/pairdeer PATH="$PATH" \
+  node /opt/pairdeer/current/scripts/prepare-company-preview.mjs
 
 stage=验证实际运行版本
 systemctl is-active --quiet pairdeer.service
@@ -159,8 +179,16 @@ for(const [name,size] of [['pdf',23338906],['mp4',29894161]]) {
     assert.equal(media.headers.get('content-type')?.split(';')[0].trim(),kind==='pdf'?'application/pdf':'video/mp4','素材类型错误：'+kind);
     assert.equal(Number(media.headers.get('content-length')),asset.size,'素材大小与资料库不一致：'+kind);
     console.log(JSON.stringify({kind,name:asset.name,size:asset.size,status:media.status}));
+    if(kind==='pdf') {
+      assert(Array.isArray(asset.previewPages)&&asset.previewPages.length>0,'当前 PDF 缺少分页预览');
+      const page=await fetch(base+asset.previewPages[0],{method:'HEAD',signal:AbortSignal.timeout(15000)});
+      assert(page.ok,'首页预览图读取失败：HTTP '+page.status);
+      assert.equal(page.headers.get('content-type')?.split(';')[0].trim(),'image/jpeg','首页预览图类型错误');
+      assert(Number(page.headers.get('content-length'))>0,'首页预览图为空');
+      console.log(JSON.stringify({previewPages:asset.previewPages.length,firstPageBytes:Number(page.headers.get('content-length')),status:page.status}));
+    }
   }
-  console.log('实际首页两个栏目、PDF 与视频接口全部通过');
+  console.log('实际首页两个栏目、PDF 分页预览与视频接口全部通过');
 })().catch(error=>{console.error(error.message);process.exitCode=1;});
 NODE
 stage=完成
