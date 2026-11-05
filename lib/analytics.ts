@@ -9,27 +9,27 @@ type AssetCatalog = {
 };
 
 export async function ensureAnalyticsTables() {
-  await db().prepare(\`CREATE TABLE IF NOT EXISTS analytics_counters (
+  await db().prepare(`CREATE TABLE IF NOT EXISTS analytics_counters (
     metric TEXT NOT NULL,
     dimension TEXT NOT NULL DEFAULT '',
     period TEXT NOT NULL DEFAULT 'all',
     count INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (metric, dimension, period)
-  )\`).run();
+  )`).run();
   // Only a one-way keyed digest is retained for unique-browser de-duplication.
   // No page, search, download, IP, user-agent or event history is stored here.
-  await db().prepare(\`CREATE TABLE IF NOT EXISTS analytics_visitors (
+  await db().prepare(`CREATE TABLE IF NOT EXISTS analytics_visitors (
     visitor_hash TEXT PRIMARY KEY
-  )\`).run();
+  )`).run();
 }
 
 export async function incrementAnalytics(metric: string, dimension = '', period = 'all', amount = 1) {
   if (!Number.isSafeInteger(amount) || amount <= 0) return;
   await ensureAnalyticsTables();
-  await db().prepare(\`INSERT INTO analytics_counters (metric, dimension, period, count)
+  await db().prepare(`INSERT INTO analytics_counters (metric, dimension, period, count)
     VALUES (?, ?, ?, ?)
     ON CONFLICT(metric, dimension, period)
-    DO UPDATE SET count = count + excluded.count\`)
+    DO UPDATE SET count = count + excluded.count`)
     .bind(metric, dimension, period, amount).run();
 }
 
