@@ -59,7 +59,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try { sameOrigin(req); } catch (error) { return fail(error, 403); }
   try {
-    if (!bindings.ADMIN_SESSION_SECRET || bindings.ADMIN_SESSION_SECRET.length < 32) {
+    const secret = bindings.ADMIN_SESSION_SECRET;
+    if (!secret || secret.length < 32) {
       throw new Error('统计服务尚未配置');
     }
     if ((await identity(req)).admin) return Response.json({ ok: true, ignored: true });
@@ -75,14 +76,14 @@ export async function POST(req: Request) {
     if (type === 'pageview') {
       await incrementAnalytics('pageview');
       await incrementAnalytics('pageview', '', month);
-      let visitorId = await visitorIdentity(req, bindings.ADMIN_SESSION_SECRET);
+      let visitorId = await visitorIdentity(req, secret);
       let setCookie = '';
       if (!visitorId) {
-        const token = await issueVisitor(bindings.ADMIN_SESSION_SECRET);
+        const token = await issueVisitor(secret);
         const cookie = visitorCookie(token);
         const cookiePair = cookie.split(';')[0];
         const syntheticRequest = new Request(req.url, { headers: { cookie: cookiePair } });
-        visitorId = await visitorIdentity(syntheticRequest, bindings.ADMIN_SESSION_SECRET);
+        visitorId = await visitorIdentity(syntheticRequest, secret);
         setCookie = cookie;
       }
       if (visitorId) await addUniqueVisitor(visitorId);
