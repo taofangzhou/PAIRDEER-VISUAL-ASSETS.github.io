@@ -1,5 +1,6 @@
 import {GET as getCatalog} from '@/app/api/catalog/route';
 import {bindings,fail} from '@/lib/server';
+import {incrementAnalytics} from '@/lib/analytics';
 import {downloadUrl} from '@/lib/downloads';
 import {zipStream,type ZipEntry} from '@/lib/zip-stream';
 import {createReadStream} from 'node:fs';
@@ -53,6 +54,7 @@ export async function GET(_req:Request,{params}:{params:Promise<{id:string}>}) {
   }
   if(!entries.length)return new Response('No images',{status:404});
   const name=product.name.replace(/[\\/:*?"<>|\r\n]/g,'_').slice(0,100)+'-主图详情页.zip';
+  await incrementAnalytics('download','detail');
   return new Response(zipStream(entries),{headers:{'Content-Type':'application/zip','Content-Disposition':`attachment; filename="product.zip"; filename*=UTF-8''${encodeURIComponent(name)}`,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
  } catch(e) {return fail(e,500)}
 }
