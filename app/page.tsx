@@ -19,6 +19,7 @@ const channels=seed.channels;
 const cities=seed.cities as Record<string,string[]>;
 const baseContacts=[{name:'大区经理',number:'(0574) 8746 2962',tel:'057487462962',icon:Phone},{name:'电商客服',number:'(0574) 8907 5149',tel:'057489075149',icon:Headphones},{name:'全国服务热线',number:'400-8760600',tel:'4008760600',icon:Phone}];
 const baseKnowledge=[{title:'PNG / JPG，怎么选？',label:'图片格式',body:'JPG 适合普通照片和产品图，文件较小，便于上传与传播。PNG 支持透明背景，适合抠出的产品、Logo 和图标，方便叠加使用。'},{title:'主图、详情页与 SKU 图',label:'素材指南',body:'主图：商品顶部的方形 1:1 图片，通常约 5 张，用于搜索结果和首屏展示。详情页：向下连续阅读的长图，介绍特点、参数、场景和优势。SKU 图：说明规格、包装、数量与销售组合，用于上架、物流、报价和下单，例如 5 号电池 2 粒装。'},{title:'设计需求，一次说清',label:'设计支持',body:'请提前说明使用平台、需要主图还是详情页、图片张数、平台特殊尺寸要求和产品版本。清晰的需求，让设计配合更高效。'}];
+function recordMetric(type:'pageview'|'search'|'download',value?:string){void fetch('/api/analytics',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,...(value?{value}:{})}),keepalive:true}).catch(()=>{})}
 async function api(url:string,init?:RequestInit){const r=await fetch(url,{cache:'no-store',...init});const d:any=await r.json();if(!r.ok)throw new Error(d.error||'操作失败，请重试');return d}
 const json=(method:string,body:any)=>({method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
 function Pick({value,onChange,options,label,labels={}}:{value:string;onChange:(s:string)=>void;options:string[];label:string;labels?:Record<string,string>}){return <Select value={value} onValueChange={onChange}><SelectTrigger aria-label={label}><SelectValue placeholder={label}/></SelectTrigger><SelectContent>{options.map(s=><SelectItem key={s} value={s}>{labels[s]||s}</SelectItem>)}</SelectContent></Select>}
@@ -32,7 +33,7 @@ export default function Home(){
  const touchX=useRef(0),photoInput=useRef<HTMLInputElement>(null),navigationRef=useRef<HTMLDivElement>(null);
  const latestRevision=useRef(-1);
  const refresh=async()=>{try{const r=await api('/api/catalog');if(r.revision>=latestRevision.current){latestRevision.current=r.revision;setData(r.data);setRevision(r.revision);}setLoaded(true);setError('')}catch(e:any){setError(e.message)}};
- const recordMetric=(type:'pageview'|'search'|'download',value?:string)=>{void fetch('/api/analytics',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,...(value?{value}:{})}),keepalive:true}).catch(()=>{})};
+
  const loadSession=async()=>{try{setSession(await api('/api/session'));setFavorites((await api('/api/favorites')).ids)}catch{}finally{setTrackingReady(true)}};
  useEffect(()=>{refresh();loadSession();const read=()=>{const u=new URL(location.href);const material=u.searchParams.get('material');setMaterialKind(material==='ppt'?'pdf':material==='pdf'||material==='video'?material:'');setProductId(u.searchParams.get('product')||'');setFavOnly(false);setAdminView(u.searchParams.has('admin')||(location.hostname==='admin.shuanglu-battery.cn'&&!u.searchParams.has('product')&&!material));setMainIndex(0)};read();window.addEventListener('popstate',read);window.addEventListener('focus',refresh);const visible=()=>{if(document.visibilityState==='visible')refresh()};document.addEventListener('visibilitychange',visible);const t=setInterval(refresh,3000);return()=>{clearInterval(t);document.removeEventListener('visibilitychange',visible);window.removeEventListener('popstate',read);window.removeEventListener('focus',refresh)}},[]);
  useEffect(()=>{setSlide(0);if(!data.banners.length)return;const t=setInterval(()=>setSlide(s=>(s+1)%Math.max(1,data.banners.length)),6500);return()=>clearInterval(t)},[data.banners.length]);
@@ -70,7 +71,7 @@ export default function Home(){
 function AnalyticsPanel(){
  const [stats,setStats]=useState<any>(null),[failure,setFailure]=useState(''),[loading,setLoading]=useState(true);
  const load=async()=>{setLoading(true);try{setStats(await api('/api/analytics'));setFailure('')}catch(e:any){setFailure(e.message||'统计数据读取失败')}finally{setLoading(false)}};
- useEffect(()=>{void load()},[]);
+ useEffect(()=>{void api('/api/analytics').then(setStats).catch((e:any)=>setFailure(e.message||'统计数据读取失败')).finally(()=>setLoading(false))},[]);
  return <section className="analytics-panel">
   <div className="analytics-heading"><div><h2>网站运营汇总</h2><p>仅展示全站聚合计数，不提供个人搜索、浏览或下载明细。</p></div><div><button className="outline" onClick={()=>void load()} disabled={loading}><RefreshCw size={15}/>刷新数据</button> <a className="primary" href="/api/analytics?format=csv"><Download size={15}/>导出 CSV</a></div></div>
   {loading?<p className="muted">正在读取统计数据…</p>:failure?<p className="notice" role="alert">{failure}</p>:stats&&<>
