@@ -11,13 +11,14 @@ const titles={pdf:'双鹿电池介绍PDF',video:'公司介绍视频'};
 
 function fileSize(size:number){return (size/1024/1024).toLocaleString('zh-CN',{maximumFractionDigits:1})+' MB'}
 function downloadLink(material:CompanyMaterial){return material.url.startsWith('/api/media/')?material.url+'?download=1':material.url}
+function recordCompanyDownload(kind:MaterialKind){void fetch('/api/analytics',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'download',value:kind}),keepalive:true}).catch(()=>{})}
 function updatedDate(value:string){return new Date(value).toLocaleDateString('zh-CN',{timeZone:'Asia/Shanghai'})}
 
 export function CompanyMaterialView({kind,material,onBack}:{kind:MaterialKind;material?:CompanyMaterial;onBack:()=>void}){
  const [failedVideo,setFailedVideo]=useState('');
  return <section className="company-material" aria-labelledby="company-material-title">
   <div className="breadcrumb"><button onClick={onBack}><ArrowLeft size={15}/>返回首页</button><span>/</span><span>{titles[kind]}</span></div>
-  <div className="company-material-heading"><div><span className="company-material-kicker">PAIRDEER · 品牌资料</span><h1 id="company-material-title">{titles[kind]}</h1><p>{kind==='pdf'?'了解双鹿电池，在线阅览品牌与产品介绍。':'走近双鹿，了解我们的品牌与实力。'}</p></div>{material&&<a className="primary" href={downloadLink(material)} download={material.name}><Download size={18}/>下载{kind==='pdf'?'PDF原文件':'视频原文件'}</a>}</div>
+  <div className="company-material-heading"><div><span className="company-material-kicker">PAIRDEER · 品牌资料</span><h1 id="company-material-title">{titles[kind]}</h1><p>{kind==='pdf'?'了解双鹿电池，在线阅览品牌与产品介绍。':'走近双鹿，了解我们的品牌与实力。'}</p></div>{material&&<a className="primary" href={downloadLink(material)} download={material.name} onClick={()=>recordCompanyDownload(kind)}><Download size={18}/>下载{kind==='pdf'?'PDF原文件':'视频原文件'}</a>}</div>
   {material?<><div className="company-material-meta"><span className="company-material-file">{kind==='pdf'?<FileText size={17}/>:<Play size={17}/>}<strong>{material.name}</strong></span><span>{fileSize(material.size)}</span><span>更新于 {updatedDate(material.updatedAt)}</span></div>
    {kind==='video'?<><div className="company-video-frame"><video key={material.url} src={material.url} controls playsInline preload="metadata" onError={()=>setFailedVideo(material.url)} aria-label="公司介绍视频">您的浏览器暂不支持视频播放，请下载后观看。</video></div>{failedVideo===material.url&&<p className="company-preview-note" role="alert">暂时无法播放此视频，您可以下载原文件后观看。</p>}</>:<CompanyPdfPreview key={material.url+'|'+(material.previewPages||[]).join('|')} material={material}/>}
   </>:<div className="company-material-empty"><FileText size={38}/><h2>资料即将上线</h2><p>管理员发布后，您可以在这里预览和下载{kind==='pdf'?'双鹿电池介绍PDF':'公司介绍视频'}。</p></div>}
