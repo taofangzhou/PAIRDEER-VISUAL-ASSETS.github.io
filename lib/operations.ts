@@ -9,25 +9,88 @@ import seed from './seed.json';
 
 export type DownloadKind = 'pdf' | 'video' | 'image' | 'detail' | 'zip';
 export type PublicAnalyticsEvent = { id: string; type: 'pageview' | 'search'; page: 'home' | 'product' | 'company_pdf' | 'company_video'; query?: string; source?: 'text' | 'image' };
-export type DownloadCounts = Record<DownloadKind, number> & { total: number };
-export type OperationsCounts = { newVisitors: number; pageViews: number; searches: number; downloads: DownloadCounts; adminMaterials: { added: number; replaced: number } };
+export type DownloadCounts = Record<Exclude<DownloadKind, 'zip'>, number> & { total: number };
 export type OperationsSnapshot = {
   collectedSince: string | null; timeZone: 'Asia/Shanghai';
-  totals: Omit<OperationsCounts, 'newVisitors'> & { visitors: number };
-  currentMonth: { month: string; pageViews: number }; range: { from: string; to: string };
-  hotModels: { model: string; count: number }[];
-  daily: (OperationsCounts & { day: string })[]; monthly: (OperationsCounts & { month: string })[];
+  totals: { visitors: number; searches: number; downloads: DownloadCounts; adminMaterials: { added: number; replaced: number } };
+  currentMonth: { month: string; pageViews: number };
+  hotModels: { model: string; count: number }[]; monthly: { month: string; pageViews: number }[];
 };
 export class OperationsError extends Error { status: number; constructor(message: string, status = 400) { super(message); this.status = status; } }
 export const OPERATIONS_EVENT_ID = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
-const DAY_MS = 86_400_000;
+export const OPERATIONS_RETRY_LIMIT = 10_000;
+export const OPERATIONS_RETRY_TTL_MS = 86_400_000;
 const COOKIE_SECONDS = 365 * 86400;
-const metrics = ['new_visitors','page_views','searches','download_pdf','download_video','download_image','download_detail','download_zip','admin_added','admin_replaced'] as const;
-type Metric = typeof metrics[number];
-type OperationsDatabase = { connection: DatabaseSync; key: string };
+const aggregateMetrics = ['searches','download_pdf','download_video','download_image','download_detail','admin_added','admin_replaced'] as const;
+type Metric = typeof aggregateMetrics[number];
+type OperationsDatabase = { connection: DatabaseSync; key: string; limiter: { window: number; count: number; browsers: Map<string, number> } };
 const globals = globalThis as typeof globalThis & { __pairdeerOperations?: Map<string, Promise<OperationsDatabase>> };
 
-/** Imports/builds do not touch disk; operational state lives only on the ECS data volume. */
+function tableExists(connection: DatabaseSync, name: string) {
+  return !!connection.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name);
+}
+function retryId(id: string) { return Buffer.from(id.replaceAll('-', ''), 'hex'); }
+function trimRetryKeys(connection: DatabaseSync, now: number) {
+  connection.prepare('DELETE FROM event_dedup WHERE recorded_at<=?').run(now - OPERATIONS_RETRY_TTL_MS);
+  const count = Number((connection.prepare('SELECT COUNT(*) AS count FROM event_dedup').get() as {count:number}).count);
+  if (count > OPERATIONS_RETRY_LIMIT) connection.prepare('DELETE FROM event_dedup WHERE id IN (SELECT id FROM event_dedup ORDER BY recorded_at,id LIMIT ?)').run(count - OPERATIONS_RETRY_LIMIT);
+}
+/** Transactionally roll up the former daily schema without resetting any requested lifetime totals or visitor identities. */
+function initializeStorage(connection: DatabaseSync) {
+  let migrated = false;
+  connection.exec('BEGIN IMMEDIATE');
+  try {
+    const version = Number((connection.prepare('PRAGMA user_version').get() as {user_version:number}).user_version);
+    if (version > 2) throw new Error('统计数据库版本较新，请使用匹配的应用版本');
+    if (version < 2) {
+      const legacy = ['metadata','visitors','hot_models','event_dedup'].filter(name => tableExists(connection,name));
+      migrated = legacy.length > 0 || tableExists(connection,'daily');
+      for (const name of legacy) connection.exec('ALTER TABLE ' + name + ' RENAME TO ' + name + '_legacy');
+      connection.exec(`
+        CREATE TABLE metadata (key TEXT PRIMARY KEY,value TEXT NOT NULL) WITHOUT ROWID;
+        CREATE TABLE visitors (hash BLOB PRIMARY KEY CHECK(length(hash)=32)) WITHOUT ROWID;
+        CREATE TABLE aggregates (id INTEGER PRIMARY KEY CHECK(id=1), ${aggregateMetrics.map(name => name + ' INTEGER NOT NULL DEFAULT 0').join(',')});
+        INSERT INTO aggregates(id) VALUES (1);
+        CREATE TABLE monthly (month TEXT PRIMARY KEY,page_views INTEGER NOT NULL DEFAULT 0) WITHOUT ROWID;
+        CREATE TABLE hot_models (model TEXT PRIMARY KEY,count INTEGER NOT NULL DEFAULT 0) WITHOUT ROWID;
+        CREATE TABLE event_dedup (id BLOB PRIMARY KEY CHECK(length(id)=16),recorded_at INTEGER NOT NULL) WITHOUT ROWID;`);
+      if (legacy.includes('metadata')) connection.exec('INSERT INTO metadata SELECT key,value FROM metadata_legacy');
+      if (legacy.includes('visitors')) {
+        connection.function('operations_hash_blob',{deterministic:true},value => {
+          if (typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value)) return Buffer.from(value,'hex');
+          if (value instanceof Uint8Array && value.byteLength === 32) return value;
+          throw new Error('已有访客去重数据格式无效，迁移已取消');
+        });
+        connection.exec('INSERT OR IGNORE INTO visitors(hash) SELECT operations_hash_blob(hash) FROM visitors_legacy');
+      }
+      if (tableExists(connection,'daily')) {
+        connection.exec('UPDATE aggregates SET ' + aggregateMetrics.map(name => name + '=(SELECT COALESCE(SUM(' + name + '),0) FROM daily)').join(','));
+        connection.exec("INSERT INTO monthly(month,page_views) SELECT substr(day,1,7),SUM(page_views) FROM daily GROUP BY substr(day,1,7)");
+      }
+      if (legacy.includes('hot_models')) connection.exec('INSERT INTO hot_models(model,count) SELECT model,SUM(count) FROM hot_models_legacy GROUP BY model');
+      if (legacy.includes('event_dedup')) {
+        connection.function('operations_event_blob',{deterministic:true},value => {
+          if (typeof value === 'string' && OPERATIONS_EVENT_ID.test(value)) return retryId(value);
+          if (value instanceof Uint8Array && value.byteLength === 16) return value;
+          return null;
+        });
+        connection.prepare('INSERT OR IGNORE INTO event_dedup SELECT operations_event_blob(id),recorded_at FROM event_dedup_legacy WHERE recorded_at>? AND operations_event_blob(id) IS NOT NULL').run(Date.now() - OPERATIONS_RETRY_TTL_MS);
+      }
+      for (const name of [...legacy.map(name => name + '_legacy'),'daily','rate_limits']) if (tableExists(connection,name)) connection.exec('DROP TABLE ' + name);
+      connection.exec('CREATE INDEX event_dedup_expiry ON event_dedup(recorded_at); PRAGMA user_version=2;');
+    }
+    trimRetryKeys(connection,Date.now());
+    connection.prepare('INSERT OR IGNORE INTO metadata(key,value) VALUES (?,?)').run('cookie_key', randomBytes(32).toString('hex'));
+    connection.exec('COMMIT');
+  } catch (error) { connection.exec('ROLLBACK'); throw error; }
+  // Compaction is maintenance, not a prerequisite for retaining the migrated counters.
+  if (migrated) {
+    try { connection.exec('PRAGMA wal_checkpoint(TRUNCATE); PRAGMA auto_vacuum=INCREMENTAL; VACUUM;'); } catch { /* A nearly full volume may defer compaction without losing the committed roll-up. */ }
+  }
+  connection.exec('PRAGMA optimize;');
+}
+
+/** Only five requested aggregates, compact exact-UV hashes and bounded 24-hour retry keys are persisted. */
 export function getOperationsDatabase(): Promise<OperationsDatabase> {
   const directory = dataDirectory();
   const databases = globals.__pairdeerOperations ??= new Map();
@@ -36,18 +99,13 @@ export function getOperationsDatabase(): Promise<OperationsDatabase> {
     pending = (async () => {
       await mkdir(directory, { recursive: true, mode: 0o700 });
       const connection = new DatabaseSync(join(directory, 'operations.sqlite'));
-      connection.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
-        CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY,value TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS visitors (hash TEXT PRIMARY KEY,first_day TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS daily (day TEXT PRIMARY KEY, ${metrics.map(name => name + ' INTEGER NOT NULL DEFAULT 0').join(',')});
-        CREATE TABLE IF NOT EXISTS hot_models (day TEXT NOT NULL,model TEXT NOT NULL,count INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(day,model));
-        CREATE TABLE IF NOT EXISTS event_dedup (id TEXT PRIMARY KEY,recorded_at INTEGER NOT NULL);
-        CREATE INDEX IF NOT EXISTS event_dedup_expiry ON event_dedup(recorded_at);
-        CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY,count INTEGER NOT NULL,expires_at INTEGER NOT NULL);
-        CREATE INDEX IF NOT EXISTS rate_limits_expiry ON rate_limits(expires_at);`);
-      connection.prepare('INSERT OR IGNORE INTO metadata(key,value) VALUES (?,?)').run('cookie_key', randomBytes(32).toString('hex'));
-      const key = (connection.prepare('SELECT value FROM metadata WHERE key=?').get('cookie_key') as { value: string }).value;
-      return { connection, key };
+      try {
+        connection.exec('PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=64; PRAGMA journal_size_limit=262144;');
+        if (!tableExists(connection,'metadata')) connection.exec('PRAGMA auto_vacuum=INCREMENTAL;');
+        initializeStorage(connection);
+        const key = (connection.prepare('SELECT value FROM metadata WHERE key=?').get('cookie_key') as { value: string }).value;
+        return { connection, key, limiter: { window:-1, count:0, browsers:new Map<string,number>() } };
+      } catch (error) { connection.close(); throw error; }
     })().catch(error => { databases.delete(directory); throw error; });
     databases.set(directory, pending);
   }
@@ -56,7 +114,11 @@ export function getOperationsDatabase(): Promise<OperationsDatabase> {
 export async function closeOperationsDatabase() {
   const directory = dataDirectory(), map = globals.__pairdeerOperations;
   const pending = map?.get(directory); map?.delete(directory);
-  if (pending) (await pending).connection.close();
+  if (pending) {
+    const database = await pending;
+    try { database.connection.exec('PRAGMA wal_checkpoint(TRUNCATE); PRAGMA incremental_vacuum(32); PRAGMA optimize;'); } catch { /* Closing must still release the connection. */ }
+    database.connection.close();
+  }
 }
 export function chinaDay(now = Date.now()) { return new Date(now + 8 * 3600_000).toISOString().slice(0,10); }
 const mac = (key: string, value: string) => createHmac('sha256', key).update(value).digest('hex');
@@ -83,24 +145,22 @@ async function excluded(req: Request, now: number) {
   }
   return false;
 }
-function increment(connection: DatabaseSync, day: string, metric: Metric, amount = 1) {
-  connection.prepare(`INSERT INTO daily(day,${metric}) VALUES (?,?) ON CONFLICT(day) DO UPDATE SET ${metric}=${metric}+excluded.${metric}`).run(day, amount);
+function increment(connection: DatabaseSync, metric: Metric, amount = 1) {
+  connection.prepare('UPDATE aggregates SET ' + metric + '=' + metric + '+? WHERE id=1').run(amount);
 }
 function acceptEvent(database: OperationsDatabase, id: string, identity: string | null, now: number) {
   const db = database.connection;
-  db.prepare('DELETE FROM event_dedup WHERE recorded_at<?').run(now - 7 * DAY_MS);
-  db.prepare('DELETE FROM rate_limits WHERE expires_at<?').run(now);
-  if (db.prepare('SELECT 1 FROM event_dedup WHERE id=?').get(id.toLowerCase())) return false;
-  const window = Math.floor(now / 60_000);
-  const limits: [string, number][] = [['global:' + window, 6000]];
-  if (identity) limits.push([mac(database.key, 'rate:' + window + ':' + identity), 180]);
-  for (const [key, maximum] of limits) {
-    const row = db.prepare('SELECT count FROM rate_limits WHERE key=?').get(key) as { count: number } | undefined;
-    if (row && row.count >= maximum) throw new OperationsError('请求较频繁，请稍后再试', 429);
-  }
-  for (const [key] of limits) db.prepare('INSERT INTO rate_limits(key,count,expires_at) VALUES (?,1,?) ON CONFLICT(key) DO UPDATE SET count=count+1').run(key, now + 3600_000);
-  db.prepare('INSERT INTO event_dedup(id,recorded_at) VALUES (?,?)').run(id.toLowerCase(), now);
-  db.prepare('INSERT OR IGNORE INTO metadata(key,value) VALUES (?,?)').run('collected_since', new Date(now).toISOString());
+  trimRetryKeys(db,now);
+  if (db.prepare('SELECT 1 FROM event_dedup WHERE id=?').get(retryId(id))) return false;
+  const window = Math.floor(now / 60_000), limit = database.limiter;
+  if (limit.window !== window) { limit.window=window; limit.count=0; limit.browsers.clear(); }
+  const key = identity ? mac(database.key,'rate:' + window + ':' + identity) : null;
+  if (limit.count >= 6000 || key && (limit.browsers.get(key) || 0) >= 180) throw new OperationsError('请求较频繁，请稍后再试',429);
+  limit.count++;
+  if (key) { if (limit.browsers.size >= 10_000 && !limit.browsers.has(key)) limit.browsers.delete(limit.browsers.keys().next().value!); limit.browsers.set(key,(limit.browsers.get(key) || 0)+1); }
+  db.prepare('INSERT INTO event_dedup(id,recorded_at) VALUES (?,?)').run(retryId(id),now);
+  trimRetryKeys(db,now);
+  db.prepare('INSERT OR IGNORE INTO metadata(key,value) VALUES (?,?)').run('collected_since',new Date(now).toISOString());
   return true;
 }
 function transaction<T>(database: OperationsDatabase, action: () => T): T {
@@ -158,11 +218,10 @@ export async function recordPublicAnalytics(req: Request, event: PublicAnalytics
   const models = event.type === 'search' ? extractCanonicalModels(event.query || '', await currentCatalogModels()) : [];
   transaction(database, () => {
     if (!acceptEvent(database, event.id, browser, now)) return;
-    const day = chinaDay(now);
-    const inserted = database.connection.prepare('INSERT OR IGNORE INTO visitors(hash,first_day) VALUES (?,?)').run(mac(database.key, 'visitor:' + browser), day);
-    if (inserted.changes) increment(database.connection, day, 'new_visitors');
-    increment(database.connection, day, event.type === 'pageview' ? 'page_views' : 'searches');
-    for (const model of models) database.connection.prepare('INSERT INTO hot_models(day,model,count) VALUES (?,?,1) ON CONFLICT(day,model) DO UPDATE SET count=count+1').run(day, model);
+    database.connection.prepare('INSERT OR IGNORE INTO visitors(hash) VALUES (?)').run(Buffer.from(mac(database.key,'visitor:' + browser),'hex'));
+    if (event.type === 'pageview') database.connection.prepare('INSERT INTO monthly(month,page_views) VALUES (?,1) ON CONFLICT(month) DO UPDATE SET page_views=page_views+1').run(chinaDay(now).slice(0,7));
+    else increment(database.connection,'searches');
+    for (const model of models) database.connection.prepare('INSERT INTO hot_models(model,count) VALUES (?,1) ON CONFLICT(model) DO UPDATE SET count=count+1').run(model);
   });
   return { ignored: false, ...(!existing ? { cookie: issueCookie(database.key, browser, now) } : {}) };
 }
@@ -171,10 +230,10 @@ export async function recordPublicAnalytics(req: Request, event: PublicAnalytics
 export async function recordDownload(req: Request, options: { kind: DownloadKind; eventId?: string }) {
   try {
     const now = Date.now();
-    if (!['pdf','video','image','detail','zip'].includes(options.kind) || req.method !== 'GET' || req.headers.has('range') || await excluded(req, now)) return;
+    if (!['pdf','video','image','detail'].includes(options.kind) || req.method !== 'GET' || req.headers.has('range') || await excluded(req, now)) return;
     const id = options.eventId || randomUUID(); if (!OPERATIONS_EVENT_ID.test(id)) return;
     const database = await getOperationsDatabase(), browser = cookieIdentity(req, database.key, now);
-    transaction(database, () => { if (acceptEvent(database, id, browser, now)) increment(database.connection, chinaDay(now), ('download_' + options.kind) as Metric); });
+    transaction(database, () => { if (acceptEvent(database, id, browser, now)) increment(database.connection, ('download_' + options.kind) as Metric); });
   } catch { /* Serving files remains independent of aggregate analytics availability. */ }
 }
 
@@ -211,46 +270,25 @@ export async function recordAdminPublication(before: unknown, after: unknown) {
     const database = await getOperationsDatabase(), now = Date.now();
     transaction(database, () => {
       database.connection.prepare('INSERT OR IGNORE INTO metadata(key,value) VALUES (?,?)').run('collected_since', new Date(now).toISOString());
-      if (counts.added) increment(database.connection, chinaDay(now), 'admin_added', counts.added);
-      if (counts.replaced) increment(database.connection, chinaDay(now), 'admin_replaced', counts.replaced);
+      if (counts.added) increment(database.connection, 'admin_added', counts.added);
+      if (counts.replaced) increment(database.connection, 'admin_replaced', counts.replaced);
     });
   } catch { /* Publication success must not depend on analytics storage. */ }
 }
 
-function counts(row?: Record<string, unknown>): OperationsCounts {
-  const n = (key: string) => Number(row?.[key] || 0);
-  const downloads = { pdf:n('download_pdf'),video:n('download_video'),image:n('download_image'),detail:n('download_detail'),zip:n('download_zip'),total:0 };
-  downloads.total = downloads.pdf + downloads.video + downloads.image + downloads.detail + downloads.zip;
-  return { newVisitors:n('new_visitors'),pageViews:n('page_views'),searches:n('searches'),downloads,adminMaterials:{added:n('admin_added'),replaced:n('admin_replaced')} };
-}
-function parseDay(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new OperationsError('日期格式应为 YYYY-MM-DD');
-  const stamp = Date.parse(value + 'T00:00:00Z');
-  if (!Number.isFinite(stamp) || new Date(stamp).toISOString().slice(0,10) !== value) throw new OperationsError('日期无效');
-  return stamp;
-}
-export async function readOperationsSnapshot(from?: string, to?: string, now = Date.now()): Promise<OperationsSnapshot> {
-  const today = chinaDay(now), month = today.slice(0,7);
-  from ||= month + '-01'; to ||= today;
-  const start = parseDay(from), end = parseDay(to);
-  if (end < start || (end - start) / DAY_MS >= 366 || to > today) throw new OperationsError('请选择截至今天、最长 366 天的有效日期范围');
+/** Reports expose only the five requested metrics; there are no daily reports, date filters or exports. */
+export async function readOperationsSnapshot(now = Date.now()): Promise<OperationsSnapshot> {
+  const month = chinaDay(now).slice(0,7);
   const database = await getOperationsDatabase(), db = database.connection;
+  trimRetryKeys(db,now);
   const row = db.prepare('SELECT value FROM metadata WHERE key=?').get('collected_since') as { value: string } | undefined;
-  const sums = metrics.map(name => 'COALESCE(SUM(' + name + '),0) AS ' + name).join(',');
-  const lifetime = counts(db.prepare('SELECT ' + sums + ' FROM daily').get());
+  const total = db.prepare('SELECT * FROM aggregates WHERE id=1').get() as Record<string,unknown>;
+  const n = (key: string) => Number(total[key] || 0);
+  const downloads = { pdf:n('download_pdf'),video:n('download_video'),image:n('download_image'),detail:n('download_detail'),total:0 };
+  downloads.total = downloads.pdf + downloads.video + downloads.image + downloads.detail;
   const visitors = Number((db.prepare('SELECT COUNT(*) AS count FROM visitors').get() as {count:number}).count);
-  const dailyRows = new Map((db.prepare('SELECT * FROM daily WHERE day BETWEEN ? AND ? ORDER BY day').all(from,to) as Record<string,unknown>[]).map(item => [String(item.day), item]));
-  const daily: OperationsSnapshot['daily'] = [];
-  for (let stamp = start; stamp <= end; stamp += DAY_MS) { const day = new Date(stamp).toISOString().slice(0,10); daily.push({ day, ...counts(dailyRows.get(day)) }); }
-  const hotModels = db.prepare('SELECT model,SUM(count) AS count FROM hot_models WHERE day BETWEEN ? AND ? GROUP BY model ORDER BY count DESC,model ASC LIMIT 50').all(from,to) as {model:string;count:number}[];
-  const monthly: OperationsSnapshot['monthly'] = [];
-  const firstMonth = new Date(from.slice(0,7) + '-01T00:00:00Z');
-  const lastMonth = to.slice(0,7);
-  for (const date = new Date(firstMonth); date.toISOString().slice(0,7) <= lastMonth; date.setUTCMonth(date.getUTCMonth() + 1)) {
-    const key = date.toISOString().slice(0,7);
-    monthly.push({ month: key, ...counts(db.prepare('SELECT ' + sums + ' FROM daily WHERE day>=? AND day<?').get(key + '-01', new Date(new Date(date).setUTCMonth(date.getUTCMonth()+1)).toISOString().slice(0,10))) });
-  }
-  const currentMonth = counts(db.prepare('SELECT ' + sums + ' FROM daily WHERE day>=? AND day<=?').get(month + '-01',today));
-  const totals = { pageViews:lifetime.pageViews,searches:lifetime.searches,downloads:lifetime.downloads,adminMaterials:lifetime.adminMaterials };
-  return { collectedSince:row?.value || null,timeZone:'Asia/Shanghai',totals:{...totals,visitors},currentMonth:{month,pageViews:currentMonth.pageViews},range:{from,to},hotModels,daily,monthly };
+  const current = db.prepare('SELECT page_views FROM monthly WHERE month=?').get(month) as {page_views:number}|undefined;
+  const hotModels = db.prepare('SELECT model,count FROM hot_models ORDER BY count DESC,model ASC LIMIT 50').all() as {model:string;count:number}[];
+  const monthly = db.prepare('SELECT month,page_views AS pageViews FROM monthly ORDER BY month').all() as {month:string;pageViews:number}[];
+  return { collectedSince:row?.value || null,timeZone:'Asia/Shanghai',totals:{visitors,searches:n('searches'),downloads,adminMaterials:{added:n('admin_added'),replaced:n('admin_replaced')}},currentMonth:{month,pageViews:Number(current?.page_views || 0)},hotModels,monthly };
 }

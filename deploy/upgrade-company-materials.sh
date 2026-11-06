@@ -5,6 +5,8 @@ set -Eeuo pipefail
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export NEXT_TELEMETRY_DISABLED=1
 umask 077
+# Keep this shell and the logging process outside disposable build checkouts.
+cd /
 install -d -m 700 /var/log/pairdeer /opt/pairdeer-builds
 log_file=/var/log/pairdeer/company-upgrade-$(date -u +%Y%m%dT%H%M%SZ)-$$.log
 exec > >(tee -a "$log_file") 2>&1
@@ -13,6 +15,15 @@ old_release=
 expected_release_id=
 service_backup=
 install_started=0
+source_dir=
+owner_token=
+cleanup_helper=
+cleanup_owned_build() {
+  if [[ -n $source_dir && -n $owner_token && -n $cleanup_helper && -f $source_dir/.pairdeer-created-by-upgrade ]]; then
+    cd / || return 1
+    python3 "$cleanup_helper" --apply --inherited-lock-fd 9 --owned-build "$source_dir" --owner-token "$owner_token" || return 1
+  fi
+}
 on_error() {
   local status=$1 line=$2 current_release
   trap - ERR
@@ -34,6 +45,7 @@ on_error() {
       curl --fail --silent --show-error --retry 5 --retry-connrefused --retry-delay 2 --max-time 10 http://127.0.0.1:3000/api/health
     fi
   fi
+  if ! cleanup_owned_build; then echo '临时构建仍被使用或无法安全回收，已保留；请查看以上原因。'; fi
   exit "$status"
 }
 trap 'on_error "$?" "$LINENO"' ERR
@@ -48,7 +60,7 @@ if ! command -v git >/dev/null 2>&1; then
   else echo '请先安装 Git，再执行本脚本。'; false
   fi
 fi
-for executable in node npm git curl tar stat awk find tee du runuser; do command -v "$executable" >/dev/null; done
+for executable in node npm git curl tar stat awk find tee du runuser python3 sha256sum; do command -v "$executable" >/dev/null; done
 node -e 'if(Number(process.versions.node.split(".")[0])<24)throw Error("服务运行路径需要 Node.js 24 或以上")'
 [[ -L /opt/pairdeer/current && -f /etc/pairdeer/pairdeer.env ]]
 [[ $(systemctl show pairdeer.service -p FragmentPath --value) == /etc/systemd/system/pairdeer.service && ! -L /etc/systemd/system/pairdeer.service ]]
@@ -63,8 +75,19 @@ if [[ $memory_and_swap -lt 3145728 ]]; then
   free -h
   false
 fi
+stage=清理旧构建缓存
+cleanup_download=$(mktemp /var/log/pairdeer/cache-cleaner-download.XXXXXXXX)
+curl --fail --show-error --location --retry 3 --connect-timeout 15 --max-time 90 \
+  -H 'Accept: application/vnd.github.raw+json' \
+  'https://api.github.com/repos/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io/contents/deploy/cleanup-build-cache.py?ref=main' \
+  -o "$cleanup_download"
+echo "0924be61da8283425ef6c62a2cdeb3f1f0a11528b5013759ef95e0f0db3f54b9  $cleanup_download" | sha256sum -c -
+cleanup_helper=/var/log/pairdeer/cache-cleaner-0924be61.py
+mv -f "$cleanup_download" "$cleanup_helper"
+python3 "$cleanup_helper" --apply --inherited-lock-fd 9
+stage=检查清理后的磁盘空间
 available_kib=$(df -Pk /opt/pairdeer-builds | awk 'NR==2 {print $4}')
-[[ $available_kib -ge 5242880 ]] || { echo '构建磁盘可用空间不足 5 GiB，请先检查 df -h。'; false; }
+[[ $available_kib -ge 5242880 ]] || { echo '旧构建缓存已检查；清理后仍不足 5 GiB，已安全停止。请提供以上清理结果及 df -h；无需重复执行旧升级命令。'; false; }
 echo "原程序：$old_release；进程：$old_pid"
 
 stage=获取并核验源码
@@ -75,10 +98,17 @@ for source_attempt in 1 2 3; do
   if git clone --depth 1 --filter=blob:none --sparse --branch main \
        https://github.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io.git "$source_dir" &&
      git -C "$source_dir" sparse-checkout set --no-cone '/*' '!/backup/'; then
+    owner_token=$(node -p 'require("node:crypto").randomBytes(32).toString("hex")')
+    printf '%s' "$owner_token" > "$source_dir/.pairdeer-created-by-upgrade"
     source_ready=1
     break
   fi
   echo "源码下载未完成，详情保留在日志中。目录：$source_dir"
+  owner_token=$(node -p 'require("node:crypto").randomBytes(32).toString("hex")')
+  printf '%s' "$owner_token" > "$source_dir/.pairdeer-created-by-upgrade"
+  if ! cleanup_owned_build; then echo '未完成的临时下载目录无法安全回收，已保留。'; fi
+  source_dir=
+  owner_token=
   if [[ $source_attempt -lt 3 ]]; then sleep 2; fi
 done
 [[ $source_ready == 1 ]] || { echo '三次源码下载均未完成，旧网站保持运行。'; false; }
@@ -102,6 +132,8 @@ NODE
 
 stage=安装依赖与构建
 npm ci --cache "$source_dir/work/npm-cache"
+# Downloaded npm tarballs are unnecessary after installation.
+rm -rf -- "$source_dir/work/npm-cache"
 NODE_OPTIONS=--max-old-space-size=1536 npm run build
 node --input-type=commonjs <<'NODE'
 const fs=require('node:fs');
@@ -188,15 +220,14 @@ for(const [name,size] of [['pdf',23338906],['mp4',29894161]]) {
       console.log(JSON.stringify({previewPages:asset.previewPages.length,firstPageBytes:Number(page.headers.get('content-length')),status:page.status}));
     }
   }
-  for(const suffix of ['', '?format=csv', '?format=xlsx']) {
-    const report=await fetch(base+'/api/admin/operations'+suffix,{signal:AbortSignal.timeout(15000)});
-    await report.body?.cancel();
-    assert.equal(report.status,403,'运营统计及导出接口必须仅允许管理员：'+suffix);
-  }
+  const report=await fetch(base+'/api/admin/operations',{signal:AbortSignal.timeout(15000)});
+  await report.body?.cancel();
+  assert.equal(report.status,403,'运营统计必须仅允许管理员');
   console.log('实际页面、素材预览及运营统计管理员访问保护全部通过');
 })().catch(error=>{console.error(error.message);process.exitCode=1;});
 NODE
 stage=完成
 trap - ERR
+if ! cleanup_owned_build; then echo '网站已更新；本次临时构建目录暂时无法安全回收，已保留。'; fi
 echo "更新成功。当前程序：$new_release；进程：$new_pid；日志：$log_file"
 echo '请登录 https://shuanglu-battery.cn/?admin=1 查看网站运营日志中心。'

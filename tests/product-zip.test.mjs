@@ -143,8 +143,7 @@ test('unmapped assets, bundled downloads and uploaded media retain ZIP contents'
   const files = unzipStored(await f.getZip(['/assets/plain.png', '/downloads/plain.jpg', '/api/media/uploaded.png']));
   assert.deepEqual([...files.keys()], ['主图/01.png', '主图/02.jpg', '主图/03.png']);
   for (const bytes of files.values()) assert.deepEqual(bytes, png);
-  assert.equal(f.events.length, 1, 'one ZIP response contributes one event for three files');
-  assert.equal(f.events[0].kind, 'zip');
+  assert.equal(f.events.length, 0, 'ZIP remains available without introducing another tracked metric');
 });
 
 test('assets and downloads cannot escape their own realpath roots', async t => {

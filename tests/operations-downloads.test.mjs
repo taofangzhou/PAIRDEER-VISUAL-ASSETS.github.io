@@ -29,7 +29,7 @@ const request=(url,method='GET',body,headers={})=>new Request('https://stats.inv
 const plain=value=>JSON.parse(JSON.stringify(value));
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZlS8AAAAASUVORK5CYII=','base64');
 
-await test('catalog-context downloads count only issued originals; ZIP replay, previews and failed publication stay uncounted',async()=>{
+await test('four catalog-original download counters exclude ZIP, previews and failed publication',async()=>{
  let core,runtime;
  try{
   core=await api('lib/operations.ts');runtime=await api('lib/runtime.ts');
@@ -90,7 +90,7 @@ await test('catalog-context downloads count only issued originals; ZIP replay, p
    const index=section==='detail'?changed.products[0].detailImages.length-1:0;
    const image=await download.GET(request(`/api/download?product=p1&section=${section}&index=${index}&eventId=${randomUUID()}`));assert.equal(image.status,302);assert.equal(image.headers.get('location'),uploadedUrl+'?download=1');
   }
-  assert.deepEqual((await counts()).downloads,{pdf:1,video:1,image:2,detail:1,zip:0,total:5});
+  assert.deepEqual((await counts()).downloads,{pdf:1,video:1,image:2,detail:1,total:5});
   for(const headers of [{cookie:adminCookie},{range:'bytes=0-'},{'sec-fetch-dest':'image'},{'sec-fetch-dest':'iframe'},{referer:'https://stats.invalid/?admin=1'}])assert.equal((await download.GET(request('/api/download?company=pdf&eventId='+randomUUID(),'GET',undefined,headers))).status,302);
   assert.equal((await download.HEAD(request('/api/download?company=pdf','HEAD'))).status,302);
   assert.equal((await counts()).downloads.total,5,'HEAD, resumptions, embedded previews and current admin sessions stay excluded');
@@ -110,10 +110,10 @@ await test('catalog-context downloads count only issued originals; ZIP replay, p
   assert.equal((await put(small.data,small.revision)).status,200);
   const zipId=randomUUID(),zipUrl='/api/product-zip/p1?eventId='+zipId,zipContext={params:Promise.resolve({id:'p1'})};
   for(let index=0;index<2;index++){const response=await zip.GET(request(zipUrl),zipContext);assert.equal(response.status,200);const bytes=Buffer.from(await response.arrayBuffer());assert.equal(bytes.readUInt32LE(0),0x04034b50);assert.equal(bytes.readUInt16LE(bytes.length-12),2,'ZIP includes both files');}
-  assert.equal((await counts()).downloads.zip,1,'ZIP counts one issued request and deduplicates the same event ID');
+  assert.deepEqual((await counts()).downloads,{pdf:2,video:1,image:2,detail:1,total:6},'ZIP packing remains available without a ZIP counter or per-file inflation');
   assert.equal((await zip.HEAD(request('/api/product-zip/p1','HEAD'),zipContext)).status,200);
   const rangeZip=await zip.GET(request('/api/product-zip/p1','GET',undefined,{range:'bytes=0-'}),zipContext);assert.equal(rangeZip.status,200);await rangeZip.arrayBuffer();
-  assert.equal((await counts()).downloads.zip,1);
+  assert.deepEqual((await counts()).downloads,{pdf:2,video:1,image:2,detail:1,total:6});
   assert.equal((await counts()).visitors,0,'downloads do not invent browser visitor records');
 
   process.env.MEDIA_ALLOWED_HOSTS='cdn.example';

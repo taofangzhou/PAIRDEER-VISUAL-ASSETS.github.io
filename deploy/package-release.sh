@@ -67,7 +67,7 @@ find "$staging" -type f -name '.env*' ! -name '.env.example' -delete
 # Check links too: copying a private filename as a symlink is not an export.
 private_files=$(find "$staging" \( -type f -o -type l \) \( \
   -name '*.sqlite' -o -name '*.sqlite-*' -o -name '*.db' -o -name '*.db-*' -o -name '*-wal' -o -name '*-shm' -o \
-  -name 'pairdeer.env' -o -name '.dev.vars' -o -name '.dev.vars.*' -o \
+  -name 'pairdeer.env' -o -name '.dev.vars' -o -name '.dev.vars.*' -o -name '.pairdeer-created-by-upgrade' -o \
   -name '*.secret' -o -name '*.key' -o -name '*.pem' -o \
   \( -name '.env*' ! -name '.env.example' \) \) -print)
 if [[ -n $private_files ]]; then

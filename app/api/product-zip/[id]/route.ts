@@ -1,8 +1,7 @@
 import {GET as getCatalog} from '@/app/api/catalog/route';
 import {bindings,fail} from '@/lib/server';
 import {downloadUrl} from '@/lib/downloads';
-import {recordDownload} from '@/lib/operations';
-import {DownloadSourceError,downloadEventId,shouldRecordDownload,validateDownloadSource} from '@/lib/download-source';
+import {DownloadSourceError,downloadEventId,validateDownloadSource} from '@/lib/download-source';
 import {zipStream,type ZipEntry} from '@/lib/zip-stream';
 import {createReadStream} from 'node:fs';
 import {stat,realpath} from 'node:fs/promises';
@@ -38,7 +37,7 @@ async function openImage(original: string): Promise<ReadableStream<Uint8Array>> 
 
 async function downloadZip(req:Request,{params}:{params:Promise<{id:string}>}) {
  try {
-  const eventId=downloadEventId(req);
+  downloadEventId(req);
   const {id}=await params;
   const result=await getCatalog();
   if(!result.ok)return result;
@@ -57,9 +56,7 @@ async function downloadZip(req:Request,{params}:{params:Promise<{id:string}>}) {
   }
   if(!entries.length)return new Response('No images',{status:404});
   const name=product.name.replace(/[\\/:*?"<>|\r\n]/g,'_').slice(0,100)+'-主图详情页.zip';
-  const response=new Response(req.method==='HEAD'?null:zipStream(entries),{headers:{'Content-Type':'application/zip','Content-Disposition':`attachment; filename="product.zip"; filename*=UTF-8''${encodeURIComponent(name)}`,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
-  if(shouldRecordDownload(req))await recordDownload(req,{kind:'zip',eventId}).catch(()=>{});
-  return response;
+  return new Response(req.method==='HEAD'?null:zipStream(entries),{headers:{'Content-Type':'application/zip','Content-Disposition':`attachment; filename="product.zip"; filename*=UTF-8''${encodeURIComponent(name)}`,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
  } catch(e) {return fail(e,e instanceof DownloadSourceError?e.status:500)}
 }
 

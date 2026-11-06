@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   // File resolvers read public/ and DATA_DIR at runtime. Never trace checkout
   // backups, test artifacts, or live databases into the application package.
   outputFileTracingExcludes: {
-    "/*": ["./backup/**/*", "./backups/**/*", "./data/**/*", "./work/**/*", "./.env*", "./**/*.sqlite*", "./**/*.db*"],
+    "/*": ["./backup/**/*", "./backups/**/*", "./data/**/*", "./work/**/*", "./.env*", "./.pairdeer-created-by-upgrade", "./**/*.sqlite*", "./**/*.db*"],
   },
   poweredByHeader: false,
   // Keep builds usable on the existing 2 GiB ECS instance.
