@@ -20,18 +20,18 @@ function synthetic(id,values) {
 }
 async function load(id) {
  if(modules.has(id))return modules.get(id);
- if(id.startsWith('node:'))return synthetic(id,await import(id));
+ if(id.startsWith('node:')){const pending=import(id).then(values=>synthetic(id,values));modules.set(id,pending);return pending;}
  if(id.endsWith('.json'))return synthetic(id,{default:JSON.parse(fs.readFileSync(id,'utf8'))});
  const source=ts.transpileModule(fs.readFileSync(id,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ESNext}}).outputText;
  const module=new vm.SourceTextModule(source,{context,identifier:id});modules.set(id,module);
- await module.link((specifier,ref)=>{
-  let target=specifier.startsWith('@/')?path.resolve(specifier.slice(2)):specifier.startsWith('.')?path.resolve(path.dirname(ref.identifier),specifier):specifier;
-  if(target.startsWith('/')&&!path.extname(target))target+='.ts';
-  return load(target);
- });
  return module;
 }
-async function route(filename){const module=await load(path.resolve(filename));await module.evaluate();return module.namespace;}
+async function linker(specifier,ref){
+ let target=specifier.startsWith('@/')?path.resolve(specifier.slice(2)):specifier.startsWith('.')?path.resolve(path.dirname(ref.identifier),specifier):specifier;
+ if(target.startsWith('/')&&!path.extname(target))target+='.ts';
+ return load(target);
+}
+async function route(filename){const module=await load(path.resolve(filename));if(module.status==='unlinked')await module.link(linker);await module.evaluate();return module.namespace;}
 const request=(url,method='GET',body,headers={})=>new Request('https://test.invalid'+url,{method,headers:{...(body?{'content-type':'application/json'}:{}),...headers},...(body?{body:JSON.stringify(body)}:{})});
 const cookie=response=>response.headers.get('set-cookie')?.split(';')[0];
 try {

@@ -56,3 +56,8 @@ next-env.d.ts
 # ECS persistent state and local verification artifacts
 /backups/
 *.tsbuildinfo
+# Runtime databases and journal files stay on ECS, including operations data.
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*

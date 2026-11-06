@@ -25,6 +25,12 @@ output_dir=$(cd "$output_dir" && pwd)
 staging=$(mktemp -d)
 trap 'rm -rf -- "$staging"' EXIT
 cp -a .next/standalone/. "$staging/"
+for private_directory in backup backups data work; do
+  if [[ -e $staging/$private_directory || -L $staging/$private_directory ]]; then
+    echo "发布包意外包含本地数据目录：$private_directory" >&2
+    exit 1
+  fi
+done
 mkdir -p "$staging/.next/static"
 cp -a .next/static/. "$staging/.next/static/"
 # Next can already trace public/ for local ZIP reads; merge directory contents
@@ -34,6 +40,7 @@ cp -a public/. "$staging/public/"
 cp -a deploy/. "$staging/deploy/"
 cp docs/github-pages-domain.md "$staging/docs/"
 cp docs/COMPANY_MATERIALS_ECS.md "$staging/docs/"
+cp docs/OPERATIONS_CENTER_ECS.md "$staging/docs/"
 [[ -f $staging/public/favicon.svg && ! -e $staging/public/public ]] || {
   echo 'Invalid release public/ layout.' >&2
   exit 1
@@ -56,6 +63,18 @@ printf '%s\n' "$release_id" > "$staging/RELEASE_ID"
 # Next's trace may copy ignored local env files; deployment secrets are loaded
 # exclusively from /etc/pairdeer/pairdeer.env, never from the release archive.
 find "$staging" -type f -name '.env*' ! -name '.env.example' -delete
+# Runtime databases and server credentials must never enter a source release.
+# Check links too: copying a private filename as a symlink is not an export.
+private_files=$(find "$staging" \( -type f -o -type l \) \( \
+  -name '*.sqlite' -o -name '*.sqlite-*' -o -name '*.db' -o -name '*.db-*' -o -name '*-wal' -o -name '*-shm' -o \
+  -name 'pairdeer.env' -o -name '.dev.vars' -o -name '.dev.vars.*' -o \
+  -name '*.secret' -o -name '*.key' -o -name '*.pem' -o \
+  \( -name '.env*' ! -name '.env.example' \) \) -print)
+if [[ -n $private_files ]]; then
+  echo '发布包检测到运行数据库或私有配置，已停止打包：' >&2
+  printf '%s\n' "$private_files" >&2
+  exit 1
+fi
 archive=$output_dir/pairdeer-$release_id.tar.gz
 tar -C "$staging" -czf "$archive" .
 echo "$archive"

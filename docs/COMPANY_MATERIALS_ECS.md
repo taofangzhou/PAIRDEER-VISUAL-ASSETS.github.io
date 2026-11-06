@@ -10,7 +10,7 @@
 
 ```bash
 cd /tmp
-curl --fail --show-error --location --retry 3 --connect-timeout 15 --max-time 90 https://raw.githubusercontent.com/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io/main/deploy/upgrade-company-materials.sh -o /tmp/pairdeer-company-upgrade.sh && \
+curl --fail --show-error --location --retry 3 --connect-timeout 15 --max-time 90 -H 'Accept: application/vnd.github.raw+json' 'https://api.github.com/repos/taofangzhou/PAIRDEER-VISUAL-ASSETS.github.io/contents/deploy/upgrade-company-materials.sh?ref=main' -o /tmp/pairdeer-company-upgrade.sh && \
 bash -n /tmp/pairdeer-company-upgrade.sh && \
 sudo bash /tmp/pairdeer-company-upgrade.sh
 sudo bash -c 'latest=$(ls -1t /var/log/pairdeer/company-upgrade-*.log | sed -n "1p"); tail -n 80 "$latest"'

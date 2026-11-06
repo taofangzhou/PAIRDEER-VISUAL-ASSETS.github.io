@@ -89,7 +89,7 @@ node --input-type=commonjs <<'NODE'
 const fs=require('node:fs');
 const assert=require('node:assert/strict');
 const source=fs.readFileSync('app/page.tsx','utf8');
-for(const label of ['双鹿电池介绍PDF','公司介绍视频']) assert(source.includes(label),'源码缺少栏目：'+label);
+for(const label of ['双鹿电池介绍PDF','公司介绍视频','网站运营日志中心']) assert(source.includes(label),'源码缺少栏目：'+label);
 for(const [name,size] of [['pdf',23338906],['mp4',29894161]]) {
   assert.equal(fs.statSync('public/assets/company/company-introduction.'+name).size,size,'原始素材不完整：'+name);
 }
@@ -120,12 +120,12 @@ node --input-type=commonjs <<'NODE'
 const fs=require('node:fs');
 const assert=require('node:assert/strict');
 const files=new Set(fs.readFileSync('work/release-files.txt','utf8').trim().split('\n'));
-for(const file of ['server.js','RELEASE_ID','public/assets/company/company-introduction.pdf','public/assets/company/company-introduction.mp4','lib/company-materials-defaults.json','scripts/prepare-company-preview.mjs']) {
+for(const file of ['server.js','RELEASE_ID','public/assets/company/company-introduction.pdf','public/assets/company/company-introduction.mp4','lib/company-materials-defaults.json','scripts/prepare-company-preview.mjs','.next/server/app/api/admin/operations/route.js','.next/server/app/api/analytics/route.js','.next/server/app/api/download/route.js']) {
   assert(files.has('./'+file),'发布包缺少：'+file);
 }
 const pages=JSON.parse(fs.readFileSync('lib/company-materials-defaults.json','utf8')).pdf.previewPages;
 for(const page of pages) assert(files.has('./public'+page),'发布包缺少分页预览：'+page);
-console.log('发布包包含 PDF、MP4、38 张分页预览与预览维护工具');
+console.log('发布包包含公司素材、分页预览及运营中心接口');
 NODE
 expected_release_id=$(tar -xOf "$archive" ./RELEASE_ID)
 [[ -n $expected_release_id ]]
@@ -188,10 +188,15 @@ for(const [name,size] of [['pdf',23338906],['mp4',29894161]]) {
       console.log(JSON.stringify({previewPages:asset.previewPages.length,firstPageBytes:Number(page.headers.get('content-length')),status:page.status}));
     }
   }
-  console.log('实际首页两个栏目、PDF 分页预览与视频接口全部通过');
+  for(const suffix of ['', '?format=csv', '?format=xlsx']) {
+    const report=await fetch(base+'/api/admin/operations'+suffix,{signal:AbortSignal.timeout(15000)});
+    await report.body?.cancel();
+    assert.equal(report.status,403,'运营统计及导出接口必须仅允许管理员：'+suffix);
+  }
+  console.log('实际页面、素材预览及运营统计管理员访问保护全部通过');
 })().catch(error=>{console.error(error.message);process.exitCode=1;});
 NODE
 stage=完成
 trap - ERR
 echo "更新成功。当前程序：$new_release；进程：$new_pid；日志：$log_file"
-echo '请刷新 https://shuanglu-battery.cn/ 查看两个新栏目。'
+echo '请登录 https://shuanglu-battery.cn/?admin=1 查看网站运营日志中心。'

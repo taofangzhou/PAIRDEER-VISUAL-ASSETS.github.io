@@ -16,11 +16,12 @@
     "db:generate": "drizzle-kit generate",
     "test:runtime": "node tests/ecs-runtime.test.mjs",
     "test:migration": "node --test tests/migrate-sites.test.mjs",
-    "test": "npm run test:auth && npm run test:runtime && npm run test:api && npm run test:migration && npm run test:zip && npm run test:company-export && npm run test:company-preview",
+    "test": "npm run test:auth && npm run test:runtime && npm run test:api && npm run test:migration && npm run test:zip && npm run test:company-export && npm run test:company-preview && npm run test:operations",
     "test:backup-export": "node --test tests/export-sites-backup.test.mjs",
     "test:zip": "node --experimental-vm-modules --test tests/product-zip.test.mjs",
     "test:company-export": "node --test tests/export-company-materials.test.mjs",
-    "test:company-preview": "node --test tests/prepare-company-preview.test.mjs"
+    "test:company-preview": "node --test tests/prepare-company-preview.test.mjs",
+    "test:operations": "node --experimental-vm-modules --test tests/operations.test.mjs tests/operations-export.test.mjs tests/operations-downloads.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

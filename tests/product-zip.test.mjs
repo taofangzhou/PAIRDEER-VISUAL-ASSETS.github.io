@@ -58,9 +58,14 @@ function unzipStored(bytes) {
 async function fixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'pairdeer-zip-'));
   const previousCwd = process.cwd();
+  const previousDataDir = process.env.DATA_DIR;
   await mkdir(path.join(root, 'public/assets'), { recursive: true });
   await mkdir(path.join(root, 'public/downloads'), { recursive: true });
+  await mkdir(path.join(root, 'data/media'), { recursive: true });
+  await writeFile(path.join(root, 'data/media/uploaded.png'), png);
+  process.env.DATA_DIR = path.join(root, 'data');
   const catalog = { products: [] };
+  const events = [];
   const context = vm.createContext({ ReadableStream, TextEncoder, Uint8Array, Request, Response, URL, Error, process, fetch, AbortSignal });
   const modules = new Map();
   function synthetic(id, values) {
@@ -70,6 +75,7 @@ async function fixture(t) {
     modules.set(id, result); return result;
   }
   synthetic(path.join(project, 'app/api/catalog/route.ts'), { GET: async () => Response.json({ data: catalog }) });
+  synthetic(path.join(project, 'lib/operations.ts'), { recordDownload: async (req, event) => events.push(event) });
   synthetic(path.join(project, 'lib/server.ts'), {
     bindings: { BUCKET: { get: async key => key === 'uploaded.png' ? { body: new Response(png).body } : null } },
     fail: (error, status) => Response.json({ error: error.message }, { status }),
@@ -94,15 +100,20 @@ async function fixture(t) {
   const route = await load(path.join(project, 'app/api/product-zip/[id]/route.ts'));
   await route.evaluate();
   process.chdir(root);
-  t.after(async () => { process.chdir(previousCwd); await rm(root, { recursive: true, force: true }); });
+  t.after(async () => {
+    process.chdir(previousCwd);
+    if (previousDataDir === undefined) delete process.env.DATA_DIR; else process.env.DATA_DIR = previousDataDir;
+    await rm(root, { recursive: true, force: true });
+  });
   const getZip = async (mainImages, detailImages = [], id = 'test') => {
     catalog.products = [{ id, name: '双鹿测试', mainImages, detailImages }];
     const response = await route.namespace.GET(new Request('https://test.invalid/api/product-zip/' + id), { params: Promise.resolve({ id }) });
+    if (!response.ok) throw new Error((await response.json()).error);
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('content-type'), 'application/zip');
     return Buffer.from(await response.arrayBuffer());
   };
-  return { root, getZip };
+  return { root, getZip, events, route, catalog };
 }
 
 test('all p1 mapped JPG originals produce a complete readable ZIP with correct bytes', async t => {
@@ -132,6 +143,8 @@ test('unmapped assets, bundled downloads and uploaded media retain ZIP contents'
   const files = unzipStored(await f.getZip(['/assets/plain.png', '/downloads/plain.jpg', '/api/media/uploaded.png']));
   assert.deepEqual([...files.keys()], ['主图/01.png', '主图/02.jpg', '主图/03.png']);
   for (const bytes of files.values()) assert.deepEqual(bytes, png);
+  assert.equal(f.events.length, 1, 'one ZIP response contributes one event for three files');
+  assert.equal(f.events[0].kind, 'zip');
 });
 
 test('assets and downloads cannot escape their own realpath roots', async t => {
@@ -142,8 +155,9 @@ test('assets and downloads cannot escape their own realpath roots', async t => {
   for (const url of ['/assets/../downloads/private.png', '/downloads/../assets/private.png',
     '/assets/%2e%2e/downloads/private.png', '/downloads/%2e%2e/assets/private.png',
     '/assets/../../private.png', '/downloads/../../private.png']) {
-    await assert.rejects(f.getZip([url]), /图片地址无效/, url);
+    await assert.rejects(f.getZip([url]), /下载地址无效/, url);
   }
+  assert.equal(f.events.length, 0, 'invalid sources never contribute download events');
 });
 
 test('symlinked files cannot cross assets/downloads boundaries or read outside public', async t => {
@@ -157,6 +171,24 @@ test('symlinked files cannot cross assets/downloads boundaries or read outside p
   await symlink(path.join(f.root, 'public/downloads/private.png'), path.join(f.root, 'public/assets/sibling.png'));
   await symlink(path.join(f.root, 'public/assets/private.png'), path.join(f.root, 'public/downloads/sibling.png'));
   for (const url of ['/assets/outside.png', '/downloads/outside.png', '/assets/sibling.png', '/downloads/sibling.png']) {
-    await assert.rejects(f.getZip([url]), /图片地址无效/, url);
+    await assert.rejects(f.getZip([url]), /下载地址无效/, url);
   }
+  assert.equal(f.events.length, 0);
+});
+
+test('HEAD, Range resumptions and missing files do not create ZIP events', async t => {
+  const f = await fixture(t);
+  f.catalog.products = [{ id: 'test', name: '双鹿测试', mainImages: ['/api/media/uploaded.png'], detailImages: [] }];
+  const context = { params: Promise.resolve({ id: 'test' }) };
+  const head = await f.route.namespace.HEAD(new Request('https://test.invalid/api/product-zip/test', { method: 'HEAD' }), context);
+  assert.equal(head.status, 200);
+  assert.equal((await head.arrayBuffer()).byteLength, 0);
+  const resumed = await f.route.namespace.GET(new Request('https://test.invalid/api/product-zip/test', { headers: { range: 'bytes=0-' } }), context);
+  assert.equal(resumed.status, 200);
+  unzipStored(Buffer.from(await resumed.arrayBuffer()));
+  assert.equal(f.events.length, 0);
+  f.catalog.products[0].mainImages = ['/api/media/missing.png'];
+  const missing = await f.route.namespace.GET(new Request('https://test.invalid/api/product-zip/test'), context);
+  assert.equal(missing.status, 404);
+  assert.equal(f.events.length, 0);
 });
